@@ -1,7 +1,7 @@
 let CLASSES = [];
 let CHILDREN = [];
 
-const STORAGE_KEY = "growth_records_v2";
+const STORAGE_KEY = "growth_records_v3";
 
 const el = (id) => document.getElementById(id);
 
@@ -21,6 +21,10 @@ const tbody = el("dataTbody");
 const chartCanvas = el("chart");
 const chartNote = el("chartNote");
 const toast = el("toast");
+
+const backupBtn = el("backupBtn");
+const restoreBtn = el("restoreBtn");
+const restoreFile = el("restoreFile");
 
 let editContext = null;
 
@@ -98,20 +102,20 @@ function initSelectors() {
 
 function refreshChildOptions() {
   const clsId = classSelect.value;
+
   const list = CHILDREN
     .filter((ch) => ch.classId === clsId)
     .sort((a, b) => a.no - b.no);
 
   childSelect.innerHTML = "";
 
-  for (const ch of list) {
-    const opt = document.createElement("option");
-    opt.value = ch.id;
-    opt.textContent = `${ch.no}. ${ch.name}`;
-    childSelect.appendChild(opt);
-  }
-
   if (list.length) {
+    for (const ch of list) {
+      const opt = document.createElement("option");
+      opt.value = ch.id;
+      opt.textContent = `${ch.no}. ${ch.name}`;
+      childSelect.appendChild(opt);
+    }
     childSelect.value = list[0].id;
   } else {
     const opt = document.createElement("option");
@@ -134,7 +138,7 @@ function setModeNew() {
 
 function setModeEdit(childId, dateStr) {
   editContext = { childId, originalDate: dateStr };
-  modeView.value = "編集（一覧から選択中）";
+  modeView.value = "編集";
 }
 
 function currentChildId() {
@@ -142,49 +146,45 @@ function currentChildId() {
 }
 
 function refreshStatus() {
-  const childId = currentChildId();
   const cls = getClassById(classSelect.value);
-  const ch = getChildById(childId);
-
-  if (!childId) {
-    statusLine.textContent = `選択中：${cls?.name ?? "-"} / （園児未登録）`;
-    return;
-  }
-
-  statusLine.textContent = `選択中：${cls?.name ?? "-"} / ${ch?.name ?? "-"}（ID: ${childId}）`;
+  const ch = getChildById(currentChildId());
+  statusLine.textContent = `選択中：${cls?.name ?? "-"} / ${ch?.name ?? "-"}`;
 }
 
 function validateInputs() {
   const childId = currentChildId();
-  if (!childId) {
-    return { ok: false, msg: "園児が未登録のクラスです。child.json を確認してください。" };
-  }
+  if (!childId) return { ok: false, msg: "園児未選択" };
 
   const d = dateInput.value;
   const h = parseNum(heightInput.value);
   const w = parseNum(weightInput.value);
 
-  if (!d) return { ok: false, msg: "日付を入力してください。" };
-  if (h === null || w === null) return { ok: false, msg: "身長・体重を入力してください。" };
-  if (h <= 0 || w <= 0) return { ok: false, msg: "身長・体重は0より大きい値にしてください。" };
+  if (!d) return { ok: false, msg: "日付を入力" };
+  if (h === null || w === null) return { ok: false, msg: "数値入力" };
+  if (h < 30 || h > 140) return { ok: false, msg: "身長異常値" };
+  if (w < 2 || w > 60) return { ok: false, msg: "体重異常値" };
 
-  return { ok: true, childId, date: d, height: round1(h), weight: round1(w) };
+  return {
+    ok: true,
+    childId,
+    date: d,
+    height: round1(h),
+    weight: round1(w)
+  };
 }
 
-function upsertRecord(childId, dateStr, height, weight) {
+function upsertRecord(childId, dateStr, height, weight, updatedAt = Date.now()) {
   const all = loadAll();
   if (!all[childId]) all[childId] = {};
-  const existed = !!all[childId][dateStr];
 
   all[childId][dateStr] = {
     date: dateStr,
     height,
     weight,
-    updatedAt: Date.now()
+    updatedAt
   };
 
   saveAll(all);
-  return existed;
 }
 
 function moveIfNeeded(childId, originalDate, newDate) {
@@ -216,11 +216,10 @@ function deleteRecord(childId, dateStr) {
   return false;
 }
 
-function computeLatestByMonthForChild(recsByDate) {
+function computeLatestByMonthForChild(recs) {
   const monthLatest = {};
-  const dates = Object.keys(recsByDate || {}).sort();
 
-  for (const d of dates) {
+  for (const d of Object.keys(recs || {})) {
     const ym = ymOf(d);
     if (!monthLatest[ym] || d > monthLatest[ym]) {
       monthLatest[ym] = d;
@@ -234,7 +233,7 @@ function openReport() {
   const childId = currentChildId();
 
   if (!childId) {
-    showToast("園児を選択してください。");
+    showToast("園児を選択");
     return;
   }
 
@@ -251,82 +250,58 @@ function renderChildTable() {
   const childId = currentChildId();
   const all = loadAll();
   const recs = all?.[childId] || {};
-  const monthLatest = computeLatestByMonthForChild(recs);
-
-  const rows = Object.keys(recs)
-    .sort((a, b) => b.localeCompare(a))
-    .map((dateStr) => {
-      const r = recs[dateStr];
-      const ym = ymOf(dateStr);
-      const latest = monthLatest[ym] || dateStr;
-      const isValid = dateStr === latest;
-
-      return {
-        date: dateStr,
-        ym,
-        height: r.height,
-        weight: r.weight,
-        isValid
-      };
-    });
+  const latest = computeLatestByMonthForChild(recs);
 
   tbody.innerHTML = "";
 
+  const rows = Object.keys(recs).sort((a, b) => b.localeCompare(a));
+
   if (rows.length === 0) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="5" class="muted">この園児のデータがありません。</td>`;
+    tr.innerHTML = `<td colspan="5">データなし</td>`;
     tbody.appendChild(tr);
     return;
   }
 
-  for (const row of rows) {
+  for (const d of rows) {
+    const r = recs[d];
+    const ym = ymOf(d);
+    const valid = latest[ym] === d;
+
     const tr = document.createElement("tr");
-
-    const statePill = row.isValid
-      ? `<span class="pill ok">有効</span>`
-      : `<span class="pill warn">無効候補</span>`;
-
     tr.innerHTML = `
-      <td class="nowrap">${escapeHtml(row.date)}<div class="small">${escapeHtml(row.ym)}</div></td>
-      <td class="right nowrap">${Number(row.height).toFixed(1)}</td>
-      <td class="right nowrap">${Number(row.weight).toFixed(1)}</td>
-      <td class="nowrap">${statePill}</td>
-      <td class="nowrap">
-        <button data-act="edit">編集</button>
-        <button class="danger" data-act="del">削除</button>
+      <td>${d}</td>
+      <td class="right">${Number(r.height).toFixed(1)}</td>
+      <td class="right">${Number(r.weight).toFixed(1)}</td>
+      <td>${valid ? "有効" : "旧"}</td>
+      <td>
+        <button data-edit="${d}">編集</button>
+        <button class="danger" data-del="${d}">削除</button>
       </td>
     `;
 
     tr.addEventListener("click", (ev) => {
-      const act = ev.target?.dataset?.act;
+      const editDate = ev.target?.dataset?.edit;
+      const delDate = ev.target?.dataset?.del;
 
-      if (act === "edit") {
-        ev.stopPropagation();
-        loadRowToForm(childId, row.date);
+      if (editDate) {
+        loadRowToForm(childId, editDate);
         return;
       }
 
-      if (act === "del") {
-        ev.stopPropagation();
-
-        if (confirm(`削除しますか？\n${row.date}`)) {
-          const ok = deleteRecord(childId, row.date);
-
+      if (delDate) {
+        if (confirm(`削除しますか？\n${delDate}`)) {
+          const ok = deleteRecord(childId, delDate);
           if (ok) {
-            if (editContext && editContext.childId === childId && editContext.originalDate === row.date) {
+            if (editContext && editContext.childId === childId && editContext.originalDate === delDate) {
               setModeNew();
             }
-
-            showToast("削除しました。");
             renderChildTable();
             drawChartForSelected();
+            showToast("削除");
           }
         }
-
-        return;
       }
-
-      loadRowToForm(childId, row.date);
     });
 
     tbody.appendChild(tr);
@@ -351,150 +326,58 @@ function loadRowToForm(childId, dateStr) {
   setModeEdit(childId, dateStr);
 
   showView("input");
-  showToast("編集用に入力画面へ戻しました。");
   refreshStatus();
-}
-
-function escapeHtml(s) {
-  return String(s ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+  showToast("編集モード");
 }
 
 function drawChartForSelected() {
   const childId = currentChildId();
   const all = loadAll();
-  const recsByDate = all?.[childId] || {};
-  const dates = Object.keys(recsByDate);
+  const recs = all?.[childId] || {};
+  const latest = computeLatestByMonthForChild(recs);
+  const months = Object.keys(latest).sort();
+  const points = months.map((m) => recs[latest[m]]);
   const ctx = chartCanvas.getContext("2d");
 
   ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
 
-  if (!childId) {
-    ctx.font = "14px system-ui";
-    ctx.fillStyle = "#6b7280";
-    ctx.fillText("園児が未選択です。", 20, 40);
+  if (points.length === 0) {
+    ctx.fillText("データなし", 40, 40);
     chartNote.textContent = "—";
     return;
   }
 
   const ch = getChildById(childId);
   const cls = getClassById(ch?.classId || "");
-  chartNote.textContent = `表示中：${cls?.name ?? "-"} / ${ch?.name ?? "-"}（月別、同月は最新日付のみ／Y=0〜140）`;
+  chartNote.textContent = `表示中：${cls?.name ?? "-"} / ${ch?.name ?? "-"}`;
 
-  if (dates.length === 0) {
-    ctx.font = "14px system-ui";
-    ctx.fillStyle = "#6b7280";
-    ctx.fillText("データがありません。", 20, 40);
-    return;
-  }
+  const pad = 50;
+  const W = chartCanvas.width - pad * 2;
+  const H = chartCanvas.height - pad * 2;
+  const max = 140;
 
-  const monthLatest = computeLatestByMonthForChild(recsByDate);
-  const months = Object.keys(monthLatest).sort();
-  const points = months.map((ym) => {
-    const d = monthLatest[ym];
-    const r = recsByDate[d];
-    return { ym, date: d, height: r.height, weight: r.weight };
-  });
+  const x = (i) => pad + (W * (i / (points.length - 1 || 1)));
+  const y = (v) => pad + H * (1 - v / max);
 
-  const pad = { l: 56, r: 20, t: 26, b: 46 };
-  const W = chartCanvas.width;
-  const H = chartCanvas.height;
-  const plotW = W - pad.l - pad.r;
-  const plotH = H - pad.t - pad.b;
-
-  const Y_MIN = 0;
-  const Y_MAX = 140;
-
-  const xOf = (i) => pad.l + (points.length === 1 ? plotW / 2 : plotW * (i / (points.length - 1)));
-  const yOf = (v) => pad.t + plotH * (1 - (v - Y_MIN) / (Y_MAX - Y_MIN));
-
-  ctx.strokeStyle = "#e5e7eb";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(pad.l, pad.t, plotW, plotH);
-
-  const TICK_STEP = 10;
-  ctx.font = "12px system-ui";
-  ctx.fillStyle = "#6b7280";
-  ctx.strokeStyle = "#eef2f7";
-  ctx.lineWidth = 1;
-
-  for (let yv = Y_MIN; yv <= Y_MAX; yv += TICK_STEP) {
-    const y = yOf(yv);
-
-    ctx.beginPath();
-    ctx.moveTo(pad.l, y);
-    ctx.lineTo(pad.l + plotW, y);
-    ctx.stroke();
-
-    const label = String(yv);
-    const tw = ctx.measureText(label).width;
-    ctx.fillText(label, pad.l - 8 - tw, y + 4);
-  }
-
-  ctx.fillStyle = "#6b7280";
-  ctx.strokeStyle = "#f1f5f9";
-  ctx.lineWidth = 1;
-
-  points.forEach((p, i) => {
-    const x = xOf(i);
-    const label = p.ym;
-    const w = ctx.measureText(label).width;
-
-    ctx.fillText(label, x - w / 2, H - 14);
-
-    ctx.beginPath();
-    ctx.moveTo(x, pad.t);
-    ctx.lineTo(x, pad.t + plotH);
-    ctx.stroke();
-  });
-
-  ctx.fillStyle = "#111827";
-  ctx.font = "12px system-ui";
-  ctx.fillText("身長（cm）", pad.l, 16);
-  ctx.fillText("体重（kg）", pad.l + 90, 16);
-
-  const colorHeight = "#2563eb";
-  const colorWeight = "#ef4444";
-
-  ctx.strokeStyle = colorHeight;
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#2563eb";
   ctx.beginPath();
   points.forEach((p, i) => {
-    const x = xOf(i);
-    const y = yOf(p.height);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+    const xx = x(i);
+    const yy = y(p.height);
+    if (i === 0) ctx.moveTo(xx, yy);
+    else ctx.lineTo(xx, yy);
   });
   ctx.stroke();
 
-  ctx.strokeStyle = colorWeight;
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#ef4444";
   ctx.beginPath();
   points.forEach((p, i) => {
-    const x = xOf(i);
-    const y = yOf(p.weight);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+    const xx = x(i);
+    const yy = y(p.weight);
+    if (i === 0) ctx.moveTo(xx, yy);
+    else ctx.lineTo(xx, yy);
   });
   ctx.stroke();
-
-  points.forEach((p, i) => {
-    const x = xOf(i);
-
-    ctx.fillStyle = colorHeight;
-    ctx.beginPath();
-    ctx.arc(x, yOf(p.height), 3, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = colorWeight;
-    ctx.beginPath();
-    ctx.arc(x, yOf(p.weight), 3, 0, Math.PI * 2);
-    ctx.fill();
-  });
 }
 
 function csvEscape(s) {
@@ -518,11 +401,8 @@ function downloadCSV(text, filename) {
   URL.revokeObjectURL(url);
 }
 
-function exportCSVAll() {
+function buildAllRowsForCSV() {
   const all = loadAll();
-  const lines = [];
-  lines.push(["className", "childName", "childId", "date", "yearMonth", "height_cm", "weight_kg"].join(","));
-
   const rows = [];
 
   for (const childId of Object.keys(all)) {
@@ -539,12 +419,29 @@ function exportCSVAll() {
         date: dateStr,
         ym: ymOf(dateStr),
         height: Number(r.height).toFixed(1),
-        weight: Number(r.weight).toFixed(1)
+        weight: Number(r.weight).toFixed(1),
+        updatedAt: String(r.updatedAt ?? "")
       });
     }
   }
 
   rows.sort((a, b) => (a.date + a.childId).localeCompare(b.date + b.childId));
+  return rows;
+}
+
+function exportCSVAll() {
+  const lines = [];
+  lines.push([
+    "className",
+    "childName",
+    "childId",
+    "date",
+    "yearMonth",
+    "height_cm",
+    "weight_kg"
+  ].join(","));
+
+  const rows = buildAllRowsForCSV();
 
   for (const r of rows) {
     lines.push([
@@ -559,14 +456,46 @@ function exportCSVAll() {
   }
 
   downloadCSV(lines.join("\n"), `growth_all_${todayISO().replaceAll("-", "")}.csv`);
-  showToast("CSV（全園児）を書き出しました。");
+  showToast("CSV全園児");
+}
+
+function exportCSVBackup() {
+  const lines = [];
+  lines.push([
+    "className",
+    "childName",
+    "childId",
+    "date",
+    "yearMonth",
+    "height_cm",
+    "weight_kg",
+    "updatedAt"
+  ].join(","));
+
+  const rows = buildAllRowsForCSV();
+
+  for (const r of rows) {
+    lines.push([
+      csvEscape(r.className),
+      csvEscape(r.childName),
+      csvEscape(r.childId),
+      csvEscape(r.date),
+      csvEscape(r.ym),
+      r.height,
+      r.weight,
+      csvEscape(r.updatedAt)
+    ].join(","));
+  }
+
+  downloadCSV(lines.join("\n"), `growth_backup_${todayISO().replaceAll("-", "")}.csv`);
+  showToast("CSVバックアップ");
 }
 
 function exportCSVSelectedChild() {
   const childId = currentChildId();
 
   if (!childId) {
-    showToast("園児を選択してください。");
+    showToast("園児を選択");
     return;
   }
 
@@ -604,7 +533,130 @@ function exportCSVSelectedChild() {
   }
 
   downloadCSV(lines.join("\n"), `growth_${(cls?.name || "")}_${(ch?.name || "")}_${todayISO().replaceAll("-", "")}.csv`);
-  showToast("CSV（この園児）を書き出しました。");
+  showToast("CSVこの園児");
+}
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+
+    if (inQuotes) {
+      if (ch === '"' && next === '"') {
+        field += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        field += ch;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inQuotes = true;
+      continue;
+    }
+
+    if (ch === ",") {
+      row.push(field);
+      field = "";
+      continue;
+    }
+
+    if (ch === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+      continue;
+    }
+
+    if (ch === "\r") {
+      continue;
+    }
+
+    field += ch;
+  }
+
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+function restoreFromCSV(file) {
+  if (!file) return;
+
+  const reader = new FileReader();
+
+  reader.onload = (e) => {
+    try {
+      const text = String(e.target?.result || "").replace(/^\uFEFF/, "");
+      const rows = parseCSV(text);
+
+      if (rows.length < 2) {
+        alert("CSVの内容が空です。");
+        return;
+      }
+
+      const header = rows[0].map((v) => String(v).trim());
+      const idxChildId = header.indexOf("childId");
+      const idxDate = header.indexOf("date");
+      const idxHeight = header.indexOf("height_cm");
+      const idxWeight = header.indexOf("weight_kg");
+      const idxUpdatedAt = header.indexOf("updatedAt");
+
+      if (idxChildId < 0 || idxDate < 0 || idxHeight < 0 || idxWeight < 0) {
+        alert("CSVの形式が違います。");
+        return;
+      }
+
+      const nextAll = {};
+
+      for (let i = 1; i < rows.length; i++) {
+        const cols = rows[i];
+        const childId = String(cols[idxChildId] ?? "").trim();
+        const dateStr = String(cols[idxDate] ?? "").trim();
+        const height = parseNum(cols[idxHeight]);
+        const weight = parseNum(cols[idxWeight]);
+        const updatedAtRaw = idxUpdatedAt >= 0 ? Number(cols[idxUpdatedAt] ?? "") : Date.now();
+
+        if (!childId || !dateStr) continue;
+        if (height === null || weight === null) continue;
+
+        if (!nextAll[childId]) nextAll[childId] = {};
+
+        nextAll[childId][dateStr] = {
+          date: dateStr,
+          height: round1(height),
+          weight: round1(weight),
+          updatedAt: Number.isFinite(updatedAtRaw) && updatedAtRaw > 0 ? updatedAtRaw : Date.now()
+        };
+      }
+
+      saveAll(nextAll);
+      setModeNew();
+      refreshStatus();
+      showView("input");
+      tbody.innerHTML = "";
+      const ctx = chartCanvas.getContext("2d");
+      ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+      chartNote.textContent = "—";
+      showToast("CSV復元");
+    } catch {
+      alert("CSV復元に失敗しました。");
+    }
+  };
+
+  reader.readAsText(file);
 }
 
 function bindEvents() {
@@ -619,47 +671,61 @@ function bindEvents() {
       moveIfNeeded(v.childId, editContext.originalDate, v.date);
     }
 
-    const existed = upsertRecord(v.childId, v.date, v.height, v.weight);
-    showToast(existed ? "上書きしました。" : "登録しました。");
-
+    upsertRecord(v.childId, v.date, v.height, v.weight);
     setModeNew();
     refreshStatus();
+    showToast("保存");
   });
 
   el("newBtn").addEventListener("click", () => {
     setModeNew();
-    showToast("新規入力に戻しました。");
+    showToast("新規入力");
   });
 
   el("openReportBtn").addEventListener("click", openReport);
 
   el("backBtn").addEventListener("click", () => {
     showView("input");
-    showToast("入力画面に戻りました。");
   });
 
   el("graphBtn").addEventListener("click", () => {
     drawChartForSelected();
-    showToast("グラフを更新しました。");
+    showToast("グラフ更新");
   });
 
   el("csvAllBtn").addEventListener("click", exportCSVAll);
   el("csvChildBtn").addEventListener("click", exportCSVSelectedChild);
 
+  backupBtn.addEventListener("click", exportCSVBackup);
+
+  restoreBtn.addEventListener("click", () => {
+    restoreFile.value = "";
+    restoreFile.click();
+  });
+
+  restoreFile.addEventListener("change", (ev) => {
+    const file = ev.target.files?.[0];
+    if (file) restoreFromCSV(file);
+  });
+
   el("resetBtn").addEventListener("click", () => {
-    if (confirm("本当に全データを削除しますか？（元に戻せません）")) {
+    if (prompt("削除と入力") === "削除") {
       localStorage.removeItem(STORAGE_KEY);
       setModeNew();
       refreshStatus();
       showView("input");
-      showToast("全データを削除しました。");
+      tbody.innerHTML = "";
+      const ctx = chartCanvas.getContext("2d");
+      ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+      chartNote.textContent = "—";
+      showToast("全削除");
     }
   });
 
   classSelect.addEventListener("change", () => {
     refreshChildOptions();
     setModeNew();
-    showToast("クラスを切り替えました。");
+    showToast("クラス切替");
   });
 
   childSelect.addEventListener("change", () => {
@@ -677,18 +743,14 @@ async function loadChildData() {
 
   const json = await res.json();
 
-  if (!json || !Array.isArray(json.classes) || !Array.isArray(json.children)) {
-    throw new Error("child.json の形式が正しくありません。");
-  }
-
-  CLASSES = json.classes
+  CLASSES = (json.classes || [])
     .map((c) => ({
       id: String(c.id ?? ""),
       name: String(c.name ?? "")
     }))
     .filter((c) => c.id && c.name);
 
-  CHILDREN = json.children
+  CHILDREN = (json.children || [])
     .map((ch) => ({
       id: String(ch.id ?? ""),
       classId: String(ch.classId ?? ""),
@@ -709,7 +771,7 @@ async function initApp() {
     bindEvents();
   } catch (err) {
     console.error(err);
-    alert("child.json の読み込みに失敗しました。index.html と同じフォルダに child.json を置き、内容を確認してください。");
+    alert("child.json の読み込みに失敗しました。");
     statusLine.textContent = "child.json の読み込みに失敗しました。";
   }
 }
