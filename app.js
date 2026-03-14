@@ -93,24 +93,70 @@ function parseNumber(value) {
   return Number.isFinite(num) ? Math.round(num * 10) / 10 : null;
 }
 
+function normalizeText(value) {
+  if (value == null) return "";
+  return String(value).replace(/\r?\n/g, " ").trim();
+}
+
+function normalizeDateString(value) {
+  if (value == null) return "";
+  const text = String(value).trim();
+  if (!text) return "";
+
+  const match = text.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (match) {
+    const y = match[1];
+    const m = match[2].padStart(2, "0");
+    const d = match[3].padStart(2, "0");
+    return `${y}/${m}/${d}`;
+  }
+
+  const dt = new Date(text);
+  if (!Number.isNaN(dt.getTime())) {
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    const d = String(dt.getDate()).padStart(2, "0");
+    return `${y}/${m}/${d}`;
+  }
+
+  return "";
+}
+
+function slashToInputDate(value) {
+  const normalized = normalizeDateString(value);
+  return normalized ? normalized.replace(/\//g, "-") : "";
+}
+
+function inputDateToSlash(value) {
+  return normalizeDateString(value);
+}
+
 function getMonthFromDate(dateStr) {
-  const dt = new Date(dateStr);
-  return Number.isNaN(dt.getTime()) ? null : dt.getMonth() + 1;
+  const normalized = normalizeDateString(dateStr);
+  if (!normalized) return null;
+  const match = normalized.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  return match ? Number(match[2]) : null;
 }
 
 function getFiscalYearFromDate(dateStr) {
-  if (!dateStr) {
+  const normalized = normalizeDateString(dateStr);
+  if (!normalized) {
     const now = new Date();
     return now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
   }
-  const dt = new Date(dateStr);
-  if (Number.isNaN(dt.getTime())) {
+  const match = normalized.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (!match) {
     const now = new Date();
     return now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
   }
-  const y = dt.getFullYear();
-  const m = dt.getMonth() + 1;
+  const y = Number(match[1]);
+  const m = Number(match[2]);
   return m >= 4 ? y : y - 1;
+}
+
+function dateSortValue(dateStr) {
+  const normalized = normalizeDateString(dateStr);
+  return normalized ? normalized.replace(/\//g, "-") : "";
 }
 
 function getActiveFiscalYear() {
@@ -149,11 +195,6 @@ function setStatus(message, target = statusLine) {
 function normalizeClassName(classId) {
   const found = CLASSES.find((item) => item.id === classId);
   return found ? found.name : classId;
-}
-
-function normalizeText(value) {
-  if (value == null) return "";
-  return String(value).replace(/\r?\n/g, " ").trim();
 }
 
 function normalizeChildId(rawChild) {
@@ -283,7 +324,8 @@ function ensureChildRecord(childId) {
 
 function validateInput() {
   const child = getSelectedChild();
-  const date = dateInput.value;
+  const inputDate = dateInput.value;
+  const date = inputDateToSlash(inputDate);
   const height = parseNumber(heightInput.value);
   const weight = parseNumber(weightInput.value);
 
@@ -356,10 +398,11 @@ function getChildMonthRecords(childId) {
   return Object.entries(bucket)
     .map(([month, rec]) => ({
       month: Number(month),
-      ...rec
+      ...rec,
+      date: normalizeDateString(rec?.date)
     }))
     .filter((item) => item && item.date)
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
+    .sort((a, b) => dateSortValue(b.date).localeCompare(dateSortValue(a.date)));
 }
 
 function openReport() {
@@ -433,7 +476,7 @@ function loadRecordToForm(row) {
   classSelect.value = row.classId || getChildClassId(row.childId);
   refreshChildOptions();
   childSelect.value = row.childId;
-  dateInput.value = row.date;
+  dateInput.value = slashToInputDate(row.date);
   heightInput.value = row.height;
   weightInput.value = row.weight;
   editContext = { childId: row.childId, month: row.month };
@@ -705,7 +748,7 @@ function buildClassCsv(classId) {
     const row = [child.id, child.name];
     MONTHS.forEach((month) => {
       const rec = bucket[monthKey(month)];
-      row.push(rec?.date || "", rec?.height ?? "", rec?.weight ?? "");
+      row.push(normalizeDateString(rec?.date || ""), rec?.height ?? "", rec?.weight ?? "");
     });
     lines.push(toCsvRow(row));
   });
@@ -815,11 +858,12 @@ function parseCsv(text) {
 }
 
 function normalizeRestoredRecord(childId, childName, classId, date, height, weight) {
-  const month = getMonthFromDate(date);
+  const normalizedDate = normalizeDateString(date);
+  const month = getMonthFromDate(normalizedDate);
   if (!month) return null;
   const h = parseNumber(height);
   const w = parseNumber(weight);
-  if (!date || h === null || w === null) return null;
+  if (!normalizedDate || h === null || w === null) return null;
 
   return {
     month,
@@ -827,7 +871,7 @@ function normalizeRestoredRecord(childId, childName, classId, date, height, weig
       childId,
       childName: normalizeText(childName),
       classId,
-      date,
+      date: normalizedDate,
       height: h,
       weight: w
     }
@@ -977,6 +1021,18 @@ async function init() {
   try {
     await loadChildrenMaster();
     RECORDS = loadStorage();
+
+    Object.keys(RECORDS).forEach((childId) => {
+      const bucket = RECORDS[childId] || {};
+      Object.keys(bucket).forEach((month) => {
+        if (bucket[month]) {
+          bucket[month].date = normalizeDateString(bucket[month].date);
+          bucket[month].childName = normalizeText(bucket[month].childName);
+        }
+      });
+    });
+    saveStorage();
+
     initSelectors();
     bindEvents();
     resetForm();
