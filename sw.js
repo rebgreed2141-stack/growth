@@ -1,5 +1,4 @@
-const CACHE_NAME = "growth-v3";
-
+const CACHE_NAME = "growth-v4";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -34,7 +33,6 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
-
   if (req.method !== "GET") return;
 
   event.respondWith(
@@ -52,35 +50,25 @@ self.addEventListener("fetch", (event) => {
           if (req.mode === "navigate") {
             return caches.match("./index.html");
           }
-
           if (req.url.endsWith("/app.js") || req.url.endsWith("app.js")) {
             return caches.match("./app.js");
           }
-
           if (req.url.endsWith("/styles.css") || req.url.endsWith("styles.css")) {
             return caches.match("./styles.css");
           }
-
           if (req.url.endsWith("/manifest.json") || req.url.endsWith("manifest.json")) {
             return caches.match("./manifest.json");
           }
-
           if (req.url.endsWith("/child.json") || req.url.endsWith("child.json")) {
             return caches.match("./child.json");
           }
-
           if (req.url.endsWith("/jszip.min.js") || req.url.endsWith("jszip.min.js")) {
             return caches.match("./jszip.min.js");
           }
-
           if (req.destination === "image") {
             return caches.match("./icon-192.png");
           }
-
-          return new Response("", {
-            status: 503,
-            statusText: "Offline fallback"
-          });
+          return new Response("", { status: 503, statusText: "Offline fallback" });
         });
     })
   );

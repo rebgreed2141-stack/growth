@@ -1,12 +1,32 @@
-let CLASSES = [];
-let CHILDREN = [];
-
-const STORAGE_KEY = "growth_records_v3";
+const STORAGE_KEY = "growth_records_v4";
+const DEFAULT_CLASSES = [
+  { id: "momiji", name: "もみじ" },
+  { id: "donguri", name: "どんぐり" },
+  { id: "koguma", name: "こぐま" },
+  { id: "risu", name: "りす" },
+  { id: "nousagi", name: "のうさぎ" },
+  { id: "kamoshika", name: "かもしか" }
+];
+const MONTHS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+const SCALE_GROUPS = {
+  infant: { heightMin: 40, heightMax: 100, weightMin: 3, weightMax: 20 },
+  middle: { heightMin: 80, heightMax: 120, weightMin: 10, weightMax: 25 },
+  senior: { heightMin: 100, heightMax: 150, weightMin: 10, weightMax: 30 }
+};
+const CLASS_GROUPS = {
+  momiji: "infant",
+  donguri: "infant",
+  koguma: "middle",
+  risu: "middle",
+  nousagi: "senior",
+  kamoshika: "senior"
+};
 
 const el = (id) => document.getElementById(id);
 
 const inputView = el("inputView");
 const reportView = el("reportView");
+const manageView = el("manageView");
 
 const classSelect = el("classSelect");
 const childSelect = el("childSelect");
@@ -15,771 +35,956 @@ const heightInput = el("heightInput");
 const weightInput = el("weightInput");
 const modeView = el("modeView");
 const statusLine = el("statusLine");
+const manageStatus = el("manageStatus");
+const headerNote = el("headerNote");
 
-const reportTitle = el("reportTitle");
-const tbody = el("dataTbody");
-const chartCanvas = el("chart");
-const chartNote = el("chartNote");
-const toast = el("toast");
+const saveBtn = el("saveBtn");
+const clearBtn = el("clearBtn");
+const openReportBtn = el("openReportBtn");
+const openManageBtn = el("openManageBtn");
+const backFromReportBtn = el("backFromReportBtn");
+const backFromManageBtn = el("backFromManageBtn");
 
 const backupBtn = el("backupBtn");
 const restoreBtn = el("restoreBtn");
 const restoreFile = el("restoreFile");
+const deleteAllBtn = el("deleteAllBtn");
 
+const reportTitle = el("reportTitle");
+const chartNote = el("chartNote");
+const tbody = el("dataTbody");
+const chartCanvas = el("chart");
+const toast = el("toast");
+
+let CLASSES = [];
+let CHILDREN = [];
+let RECORDS = {};
 let editContext = null;
 
-function loadAll() {
+function loadStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
   }
 }
 
-function saveAll(obj) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+function saveStorage() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(RECORDS));
+}
+
+function monthKey(month) {
+  return String(month);
 }
 
 function todayISO() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const da = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${da}`;
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
-function ymOf(dateStr) {
-  return String(dateStr).slice(0, 7);
+function parseNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? Math.round(num * 10) / 10 : null;
 }
 
-function parseNum(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
+function getMonthFromDate(dateStr) {
+  const dt = new Date(dateStr);
+  return Number.isNaN(dt.getTime()) ? null : dt.getMonth() + 1;
 }
 
-function round1(n) {
-  return Math.round(n * 10) / 10;
-}
-
-function getClassById(id) {
-  return CLASSES.find((c) => c.id === id) || null;
-}
-
-function getChildById(id) {
-  return CHILDREN.find((c) => c.id === id) || null;
-}
-
-function showToast(msg) {
-  toast.textContent = msg;
-  toast.classList.add("show");
-  setTimeout(() => toast.classList.remove("show"), 1800);
-}
-
-function showView(which) {
-  if (which === "input") {
-    inputView.classList.add("active");
-    reportView.classList.remove("active");
-  } else {
-    inputView.classList.remove("active");
-    reportView.classList.add("active");
+function getFiscalYearFromDate(dateStr) {
+  if (!dateStr) {
+    const now = new Date();
+    return now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
   }
+  const dt = new Date(dateStr);
+  if (Number.isNaN(dt.getTime())) {
+    const now = new Date();
+    return now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
+  }
+  const y = dt.getFullYear();
+  const m = dt.getMonth() + 1;
+  return m >= 4 ? y : y - 1;
+}
+
+function getActiveFiscalYear() {
+  const dates = Object.values(RECORDS)
+    .flatMap((months) => Object.values(months || {}))
+    .map((rec) => rec && rec.date)
+    .filter(Boolean);
+
+  if (!dates.length) return getFiscalYearFromDate("");
+
+  const counts = {};
+  for (const date of dates) {
+    const fy = getFiscalYearFromDate(date);
+    counts[fy] = (counts[fy] || 0) + 1;
+  }
+
+  return Number(
+    Object.entries(counts).sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      return Number(a[0]) - Number(b[0]);
+    })[0][0]
+  );
+}
+
+function showToast(message) {
+  toast.textContent = message;
+  toast.classList.add("show");
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(() => toast.classList.remove("show"), 1800);
+}
+
+function setStatus(message, target = statusLine) {
+  target.textContent = message || "";
+}
+
+function normalizeClassName(classId) {
+  const found = CLASSES.find((item) => item.id === classId);
+  return found ? found.name : classId;
+}
+
+function normalizeText(value) {
+  if (value == null) return "";
+  return String(value).replace(/\r?\n/g, " ").trim();
+}
+
+function normalizeChildId(rawChild) {
+  if (rawChild.id) return String(rawChild.id);
+  const classId = String(rawChild.classId || rawChild.class || rawChild.group || "");
+  const name = normalizeText(rawChild.name || rawChild.childName || "");
+  return `${classId}:${name}`;
+}
+
+function normalizeChildrenPayload(payload) {
+  if (Array.isArray(payload)) {
+    const children = payload.map((item, index) => {
+      const classId = String(item.classId || item.class || item.group || "");
+      const name = normalizeText(item.name || item.childName || item.fullName || "");
+      return {
+        id: normalizeChildId(item),
+        classId,
+        name,
+        no: Number(item.no) || index + 1
+      };
+    });
+    return { classes: DEFAULT_CLASSES.slice(), children };
+  }
+
+  if (payload && typeof payload === "object") {
+    const classes = Array.isArray(payload.classes)
+      ? payload.classes.map((item) => ({
+          id: String(item.id),
+          name: normalizeText(item.name || item.label || item.id)
+        }))
+      : DEFAULT_CLASSES.slice();
+
+    const source = Array.isArray(payload.children) ? payload.children : [];
+    const children = source.map((item, index) => ({
+      id: normalizeChildId(item),
+      classId: String(item.classId || item.class || item.group || ""),
+      name: normalizeText(item.name || item.childName || item.fullName || ""),
+      no: Number(item.no) || index + 1
+    }));
+
+    return { classes, children };
+  }
+
+  return { classes: DEFAULT_CLASSES.slice(), children: [] };
+}
+
+async function loadChildrenMaster() {
+  const response = await fetch("./child.json", { cache: "no-store" });
+  if (!response.ok) throw new Error("child.json を読み込めませんでした。");
+  const payload = await response.json();
+  const normalized = normalizeChildrenPayload(payload);
+  CLASSES = normalized.classes.length ? normalized.classes : DEFAULT_CLASSES.slice();
+  CHILDREN = normalized.children;
+}
+
+function sortChildren(list) {
+  return [...list].sort((a, b) => {
+    const classOrder = CLASSES.findIndex((c) => c.id === a.classId) - CLASSES.findIndex((c) => c.id === b.classId);
+    if (classOrder !== 0) return classOrder;
+    if ((a.no || 0) !== (b.no || 0)) return (a.no || 0) - (b.no || 0);
+    return a.name.localeCompare(b.name, "ja");
+  });
 }
 
 function initSelectors() {
   classSelect.innerHTML = "";
-
-  for (const c of CLASSES) {
-    const opt = document.createElement("option");
-    opt.value = c.id;
-    opt.textContent = c.name;
-    classSelect.appendChild(opt);
+  for (const item of CLASSES) {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = item.name;
+    classSelect.appendChild(option);
   }
 
-  classSelect.value = CLASSES[0]?.id ?? "";
+  if (CLASSES.length) {
+    classSelect.value = CLASSES[0].id;
+  }
   refreshChildOptions();
 }
 
 function refreshChildOptions() {
-  const clsId = classSelect.value;
-
-  const list = CHILDREN
-    .filter((ch) => ch.classId === clsId)
-    .sort((a, b) => a.no - b.no);
-
+  const classId = classSelect.value;
+  const list = sortChildren(CHILDREN.filter((item) => item.classId === classId));
+  const currentValue = childSelect.value;
   childSelect.innerHTML = "";
 
-  if (list.length) {
-    for (const ch of list) {
-      const opt = document.createElement("option");
-      opt.value = ch.id;
-      opt.textContent = `${ch.no}. ${ch.name}`;
-      childSelect.appendChild(opt);
-    }
+  for (const child of list) {
+    const option = document.createElement("option");
+    option.value = child.id;
+    option.textContent = child.no ? `${child.no}. ${child.name}` : child.name;
+    childSelect.appendChild(option);
+  }
+
+  if (list.some((item) => item.id === currentValue)) {
+    childSelect.value = currentValue;
+  } else if (list[0]) {
     childSelect.value = list[0].id;
   } else {
-    const opt = document.createElement("option");
-    opt.value = "";
-    opt.textContent = "（園児未登録）";
-    childSelect.appendChild(opt);
     childSelect.value = "";
   }
 
-  refreshStatus();
+  if (!editContext) {
+    dateInput.value = todayISO();
+  }
 }
 
-function setModeNew() {
+function showView(name) {
+  inputView.classList.toggle("active", name === "input");
+  reportView.classList.toggle("active", name === "report");
+  manageView.classList.toggle("active", name === "manage");
+}
+
+function getSelectedChild() {
+  return CHILDREN.find((item) => item.id === childSelect.value) || null;
+}
+
+function getChildClassId(childId) {
+  const child = CHILDREN.find((item) => item.id === childId);
+  return child ? child.classId : "";
+}
+
+function ensureChildRecord(childId) {
+  if (!RECORDS[childId] || typeof RECORDS[childId] !== "object") {
+    RECORDS[childId] = {};
+  }
+  return RECORDS[childId];
+}
+
+function validateInput() {
+  const child = getSelectedChild();
+  const date = dateInput.value;
+  const height = parseNumber(heightInput.value);
+  const weight = parseNumber(weightInput.value);
+
+  if (!child) {
+    setStatus("園児を選択してください。");
+    return null;
+  }
+  if (!date) {
+    setStatus("日付を入力してください。");
+    return null;
+  }
+  if (height === null || height <= 0) {
+    setStatus("身長を正しく入力してください。");
+    return null;
+  }
+  if (weight === null || weight <= 0) {
+    setStatus("体重を正しく入力してください。");
+    return null;
+  }
+  if (height < 30 || height > 160) {
+    setStatus("身長は30〜160cmで入力してください。");
+    return null;
+  }
+  if (weight < 1 || weight > 40) {
+    setStatus("体重は1〜40kgで入力してください。");
+    return null;
+  }
+
+  return { child, date, height, weight };
+}
+
+function resetForm() {
   editContext = null;
-  modeView.value = "新規登録";
+  modeView.textContent = "新規登録";
   dateInput.value = todayISO();
   heightInput.value = "";
   weightInput.value = "";
+  setStatus("");
 }
 
-function setModeEdit(childId, dateStr) {
-  editContext = { childId, originalDate: dateStr };
-  modeView.value = "編集";
-}
+function saveCurrentRecord() {
+  const data = validateInput();
+  if (!data) return;
 
-function currentChildId() {
-  return childSelect.value;
-}
+  const month = getMonthFromDate(data.date);
+  if (!month) {
+    setStatus("日付を正しく入力してください。");
+    return;
+  }
 
-function refreshStatus() {
-  const cls = getClassById(classSelect.value);
-  const ch = getChildById(currentChildId());
-  statusLine.textContent = `選択中：${cls?.name ?? "-"} / ${ch?.name ?? "-"}`;
-}
-
-function validateInputs() {
-  const childId = currentChildId();
-  if (!childId) return { ok: false, msg: "園児未選択" };
-
-  const d = dateInput.value;
-  const h = parseNum(heightInput.value);
-  const w = parseNum(weightInput.value);
-
-  if (!d) return { ok: false, msg: "日付を入力" };
-  if (h === null || w === null) return { ok: false, msg: "数値入力" };
-  if (h < 30 || h > 140) return { ok: false, msg: "身長異常値" };
-  if (w < 2 || w > 60) return { ok: false, msg: "体重異常値" };
-
-  return {
-    ok: true,
-    childId,
-    date: d,
-    height: round1(h),
-    weight: round1(w)
-  };
-}
-
-function upsertRecord(childId, dateStr, height, weight, updatedAt = Date.now()) {
-  const all = loadAll();
-  if (!all[childId]) all[childId] = {};
-
-  all[childId][dateStr] = {
-    date: dateStr,
-    height,
-    weight,
-    updatedAt
+  const target = ensureChildRecord(data.child.id);
+  target[monthKey(month)] = {
+    childId: data.child.id,
+    childName: normalizeText(data.child.name),
+    classId: data.child.classId,
+    date: data.date,
+    height: data.height,
+    weight: data.weight
   };
 
-  saveAll(all);
+  saveStorage();
+  modeView.textContent = "新規登録";
+  editContext = null;
+  setStatus(`${month}月のデータを保存しました。`);
+  showToast("保存しました");
 }
 
-function moveIfNeeded(childId, originalDate, newDate) {
-  if (originalDate === newDate) return;
-
-  const all = loadAll();
-  if (!all[childId]) return;
-
-  if (all[childId][originalDate]) {
-    delete all[childId][originalDate];
-    saveAll(all);
-  }
-}
-
-function deleteRecord(childId, dateStr) {
-  const all = loadAll();
-
-  if (all[childId] && all[childId][dateStr]) {
-    delete all[childId][dateStr];
-
-    if (Object.keys(all[childId]).length === 0) {
-      delete all[childId];
-    }
-
-    saveAll(all);
-    return true;
-  }
-
-  return false;
-}
-
-function computeLatestByMonthForChild(recs) {
-  const monthLatest = {};
-
-  for (const d of Object.keys(recs || {})) {
-    const ym = ymOf(d);
-    if (!monthLatest[ym] || d > monthLatest[ym]) {
-      monthLatest[ym] = d;
-    }
-  }
-
-  return monthLatest;
+function getChildMonthRecords(childId) {
+  const bucket = RECORDS[childId] || {};
+  return Object.entries(bucket)
+    .map(([month, rec]) => ({
+      month: Number(month),
+      ...rec
+    }))
+    .filter((item) => item && item.date)
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
 function openReport() {
-  const childId = currentChildId();
-
-  if (!childId) {
-    showToast("園児を選択");
+  const child = getSelectedChild();
+  if (!child) {
+    setStatus("園児を選択してください。");
     return;
   }
-
-  const ch = getChildById(childId);
-  const cls = getClassById(ch?.classId || classSelect.value);
-
-  reportTitle.textContent = `表示対象：${cls?.name ?? "-"} / ${ch?.name ?? "-"}（ID: ${childId}）`;
+  renderReport(child.id);
   showView("report");
-  renderChildTable();
-  drawChartForSelected();
 }
 
-function renderChildTable() {
-  const childId = currentChildId();
-  const all = loadAll();
-  const recs = all?.[childId] || {};
-  const latest = computeLatestByMonthForChild(recs);
+function renderReport(childId) {
+  const child = CHILDREN.find((item) => item.id === childId);
+  const rows = getChildMonthRecords(childId);
+  const className = normalizeClassName(child ? child.classId : getChildClassId(childId));
 
+  reportTitle.textContent = child ? `${className}組　${child.name}` : childId;
+  chartNote.textContent = "最新のデータが上に表示されます。";
+
+  renderChart(child, rows);
+  renderTable(rows);
+}
+
+function renderTable(rows) {
   tbody.innerHTML = "";
 
-  const rows = Object.keys(recs).sort((a, b) => b.localeCompare(a));
-
-  if (rows.length === 0) {
+  if (!rows.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="5">データなし</td>`;
+    tr.innerHTML = `<td colspan="5" class="empty-cell">データがありません。</td>`;
     tbody.appendChild(tr);
     return;
   }
 
-  for (const d of rows) {
-    const r = recs[d];
-    const ym = ymOf(d);
-    const valid = latest[ym] === d;
-
+  for (const row of rows) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${d}</td>
-      <td class="right">${Number(r.height).toFixed(1)}</td>
-      <td class="right">${Number(r.weight).toFixed(1)}</td>
-      <td>${valid ? "有効" : "旧"}</td>
-      <td>
-        <button data-edit="${d}">編集</button>
-        <button class="danger" data-del="${d}">削除</button>
-      </td>
-    `;
 
-    tr.addEventListener("click", (ev) => {
-      const editDate = ev.target?.dataset?.edit;
-      const delDate = ev.target?.dataset?.del;
-
-      if (editDate) {
-        loadRowToForm(childId, editDate);
-        return;
-      }
-
-      if (delDate) {
-        if (confirm(`削除しますか？\n${delDate}`)) {
-          const ok = deleteRecord(childId, delDate);
-          if (ok) {
-            if (editContext && editContext.childId === childId && editContext.originalDate === delDate) {
-              setModeNew();
-            }
-            renderChildTable();
-            drawChartForSelected();
-            showToast("削除");
-          }
-        }
-      }
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.className = "mini-btn";
+    editButton.textContent = "編集";
+    editButton.addEventListener("click", () => {
+      loadRecordToForm(row);
     });
 
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "mini-btn danger";
+    deleteButton.textContent = "削除";
+    deleteButton.addEventListener("click", () => {
+      deleteMonthRecord(row.childId, row.month);
+    });
+
+    const actionCell = document.createElement("td");
+    actionCell.className = "action-cell";
+    actionCell.append(editButton, deleteButton);
+
+    tr.innerHTML = `
+      <td>${row.month}月</td>
+      <td>${row.date}</td>
+      <td>${Number(row.height).toFixed(1)}</td>
+      <td>${Number(row.weight).toFixed(1)}</td>
+    `;
+    tr.appendChild(actionCell);
     tbody.appendChild(tr);
   }
 }
 
-function loadRowToForm(childId, dateStr) {
-  const all = loadAll();
-  const rec = all?.[childId]?.[dateStr];
-  if (!rec) return;
-
-  const ch = getChildById(childId);
-  if (ch?.classId) {
-    classSelect.value = ch.classId;
-    refreshChildOptions();
-    childSelect.value = childId;
-  }
-
-  dateInput.value = dateStr;
-  heightInput.value = rec.height;
-  weightInput.value = rec.weight;
-  setModeEdit(childId, dateStr);
-
+function loadRecordToForm(row) {
   showView("input");
-  refreshStatus();
-  showToast("編集モード");
+  classSelect.value = row.classId || getChildClassId(row.childId);
+  refreshChildOptions();
+  childSelect.value = row.childId;
+  dateInput.value = row.date;
+  heightInput.value = row.height;
+  weightInput.value = row.weight;
+  editContext = { childId: row.childId, month: row.month };
+  modeView.textContent = `${row.month}月データを編集中`;
+  setStatus(`${row.month}月データを編集中です。`);
 }
 
-function drawChartForSelected() {
-  const childId = currentChildId();
-  const all = loadAll();
-  const recs = all?.[childId] || {};
-  const latest = computeLatestByMonthForChild(recs);
-  const months = Object.keys(latest).sort();
-  const points = months.map((m) => recs[latest[m]]);
+function deleteMonthRecord(childId, month) {
+  const childRows = RECORDS[childId];
+  if (!childRows || !childRows[monthKey(month)]) return;
+
+  const yes = window.confirm(`${month}月のデータを削除します。よろしいですか？`);
+  if (!yes) return;
+
+  delete childRows[monthKey(month)];
+  if (!Object.keys(childRows).length) {
+    delete RECORDS[childId];
+  }
+  saveStorage();
+
+  if (editContext && editContext.childId === childId && editContext.month === month) {
+    resetForm();
+  }
+
+  if (reportView.classList.contains("active")) {
+    renderReport(childId);
+  }
+
+  setStatus(`${month}月のデータを削除しました。`);
+  showToast("削除しました");
+}
+
+function getScaleForClass(classId) {
+  const group = CLASS_GROUPS[classId] || "middle";
+  return SCALE_GROUPS[group];
+}
+
+function getMonthLabel(month) {
+  return `${month}月`;
+}
+
+function renderChart(child, rows) {
   const ctx = chartCanvas.getContext("2d");
+  const cssWidth = chartCanvas.clientWidth || 900;
+  const cssHeight = 520;
+  const dpr = window.devicePixelRatio || 1;
 
-  ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+  chartCanvas.width = cssWidth * dpr;
+  chartCanvas.height = cssHeight * dpr;
+  chartCanvas.style.height = `${cssHeight}px`;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  if (points.length === 0) {
-    ctx.fillText("データなし", 40, 40);
-    chartNote.textContent = "—";
+  const width = cssWidth;
+  const height = cssHeight;
+
+  ctx.clearRect(0, 0, width, height);
+
+  const margin = { top: 28, right: 70, bottom: 56, left: 70 };
+  const plotW = width - margin.left - margin.right;
+  const plotH = height - margin.top - margin.bottom;
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.strokeStyle = "#d9e2ec";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(margin.left, margin.top, plotW, plotH);
+
+  if (!child || !rows.length) {
+    ctx.fillStyle = "#445";
+    ctx.font = "18px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("データがありません", width / 2, height / 2);
     return;
   }
 
-  const ch = getChildById(childId);
-  const cls = getClassById(ch?.classId || "");
-  chartNote.textContent = `表示中：${cls?.name ?? "-"} / ${ch?.name ?? "-"}`;
+  const scale = getScaleForClass(child.classId);
+  const ordered = [...rows].sort((a, b) => MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month));
+  const xStep = MONTHS.length > 1 ? plotW / (MONTHS.length - 1) : plotW;
+  const monthIndexMap = new Map(MONTHS.map((m, i) => [m, i]));
 
-  const pad = 50;
-  const W = chartCanvas.width - pad * 2;
-  const H = chartCanvas.height - pad * 2;
-  const max = 140;
-
-  const x = (i) => pad + (W * (i / (points.length - 1 || 1)));
-  const y = (v) => pad + H * (1 - v / max);
-
-  ctx.strokeStyle = "#2563eb";
-  ctx.beginPath();
-  points.forEach((p, i) => {
-    const xx = x(i);
-    const yy = y(p.height);
-    if (i === 0) ctx.moveTo(xx, yy);
-    else ctx.lineTo(xx, yy);
-  });
-  ctx.stroke();
-
-  ctx.strokeStyle = "#ef4444";
-  ctx.beginPath();
-  points.forEach((p, i) => {
-    const xx = x(i);
-    const yy = y(p.weight);
-    if (i === 0) ctx.moveTo(xx, yy);
-    else ctx.lineTo(xx, yy);
-  });
-  ctx.stroke();
-}
-
-function csvEscape(s) {
-  const str = String(s ?? "");
-  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-    return `"${str.replaceAll('"', '""')}"`;
+  function xOf(month) {
+    return margin.left + xStep * monthIndexMap.get(month);
   }
-  return str;
+
+  function yOf(value, min, max) {
+    return margin.top + plotH - ((value - min) / (max - min)) * plotH;
+  }
+
+  for (let i = 0; i <= 6; i += 1) {
+    const y = margin.top + (plotH / 6) * i;
+    ctx.strokeStyle = "#eef3f7";
+    ctx.beginPath();
+    ctx.moveTo(margin.left, y);
+    ctx.lineTo(margin.left + plotW, y);
+    ctx.stroke();
+
+    const hValue = scale.heightMax - ((scale.heightMax - scale.heightMin) / 6) * i;
+    const wValue = scale.weightMax - ((scale.weightMax - scale.weightMin) / 6) * i;
+
+    ctx.fillStyle = "#2f4b5f";
+    ctx.font = "12px sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(String(Math.round(hValue)), margin.left - 8, y + 4);
+
+    ctx.textAlign = "left";
+    ctx.fillText(String(Math.round(wValue)), margin.left + plotW + 8, y + 4);
+  }
+
+  MONTHS.forEach((month, i) => {
+    const x = margin.left + xStep * i;
+    ctx.strokeStyle = "#eef3f7";
+    ctx.beginPath();
+    ctx.moveTo(x, margin.top);
+    ctx.lineTo(x, margin.top + plotH);
+    ctx.stroke();
+
+    ctx.fillStyle = "#2f4b5f";
+    ctx.font = "12px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(getMonthLabel(month), x, margin.top + plotH + 24);
+  });
+
+  ctx.fillStyle = "#2f4b5f";
+  ctx.font = "12px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("身長(cm)", margin.left, 18);
+  ctx.textAlign = "right";
+  ctx.fillText("体重(kg)", width - 16, 18);
+
+  const heightPoints = ordered.map((row) => ({
+    x: xOf(row.month),
+    y: yOf(row.height, scale.heightMin, scale.heightMax)
+  }));
+
+  const weightPoints = ordered.map((row) => ({
+    x: xOf(row.month),
+    y: yOf(row.weight, scale.weightMin, scale.weightMax)
+  }));
+
+  drawLine(ctx, heightPoints, "#2e7d32", true);
+  drawLine(ctx, weightPoints, "#1565c0", true);
+
+  drawLegend(ctx, width - 170, margin.top + 10);
 }
 
-function downloadCSV(text, filename) {
-  const bom = "\uFEFF";
-  const blob = new Blob([bom + text], { type: "text/csv;charset=utf-8" });
+function drawLine(ctx, points, color, drawDots) {
+  if (!points.length) return;
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i += 1) {
+    ctx.lineTo(points[i].x, points[i].y);
+  }
+  ctx.stroke();
+
+  if (!drawDots) return;
+
+  for (const point of points) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+function drawLegend(ctx, x, y) {
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(x, y, 150, 54);
+  ctx.strokeStyle = "#d9e2ec";
+  ctx.strokeRect(x, y, 150, 54);
+
+  ctx.strokeStyle = "#2e7d32";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x + 12, y + 18);
+  ctx.lineTo(x + 42, y + 18);
+  ctx.stroke();
+  ctx.fillStyle = "#2e7d32";
+  ctx.beginPath();
+  ctx.arc(x + 27, y + 18, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#2f4b5f";
+  ctx.font = "12px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("身長", x + 52, y + 22);
+
+  ctx.strokeStyle = "#1565c0";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x + 12, y + 38);
+  ctx.lineTo(x + 42, y + 38);
+  ctx.stroke();
+  ctx.fillStyle = "#1565c0";
+  ctx.beginPath();
+  ctx.arc(x + 27, y + 38, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#2f4b5f";
+  ctx.fillText("体重", x + 52, y + 42);
+}
+
+function toCsvCell(value) {
+  const text = normalizeText(value);
+  if (/[",\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function toCsvRow(values) {
+  return values.map(toCsvCell).join(",");
+}
+
+function buildClassCsv(classId) {
+  const childrenInClass = sortChildren(CHILDREN.filter((child) => child.classId === classId));
+  const recordIds = Object.keys(RECORDS).filter((childId) => {
+    const bucket = RECORDS[childId] || {};
+    const sample = Object.values(bucket)[0];
+    return sample && sample.classId === classId;
+  });
+
+  const allChildMap = new Map();
+  childrenInClass.forEach((child) => {
+    allChildMap.set(child.id, {
+      id: child.id,
+      name: normalizeText(child.name),
+      classId: child.classId,
+      no: child.no
+    });
+  });
+
+  recordIds.forEach((childId) => {
+    if (!allChildMap.has(childId)) {
+      const bucket = RECORDS[childId] || {};
+      const sample = Object.values(bucket)[0];
+      allChildMap.set(childId, {
+        id: childId,
+        name: normalizeText(sample?.childName || childId),
+        classId: sample?.classId || classId,
+        no: 9999
+      });
+    }
+  });
+
+  const allChildren = sortChildren([...allChildMap.values()]);
+  const hasAnyData = allChildren.some((child) => {
+    const bucket = RECORDS[child.id] || {};
+    return Object.keys(bucket).length > 0;
+  });
+
+  if (!hasAnyData) return null;
+
+  const header = ["childId", "childName"];
+  MONTHS.forEach((month) => {
+    header.push(`${month}d`, `${month}h`, `${month}w`);
+  });
+
+  const lines = [toCsvRow(header)];
+
+  allChildren.forEach((child) => {
+    const bucket = RECORDS[child.id] || {};
+    const row = [child.id, child.name];
+    MONTHS.forEach((month) => {
+      const rec = bucket[monthKey(month)];
+      row.push(rec?.date || "", rec?.height ?? "", rec?.weight ?? "");
+    });
+    lines.push(toCsvRow(row));
+  });
+
+  return "\uFEFF" + lines.join("\r\n");
+}
+
+async function backupZip() {
+  const zip = new JSZip();
+  const fiscalYear = getActiveFiscalYear();
+  let added = 0;
+
+  for (const cls of CLASSES) {
+    const csv = buildClassCsv(cls.id);
+    if (!csv) continue;
+    zip.file(`growth_${cls.id}_${fiscalYear}.csv`, csv);
+    added += 1;
+  }
+
+  if (!added) {
+    setStatus("バックアップ対象のデータがありません。", manageStatus);
+    showToast("データがありません");
+    return;
+  }
+
+  const blob = await zip.generateAsync({ type: "blob" });
+  downloadBlob(blob, `growth_backup_${fiscalYear}.zip`);
+  setStatus(`${added}件のクラスCSVをZipにしました。`, manageStatus);
+  showToast("バックアップしました");
+}
+
+function downloadBlob(blob, fileName) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = filename;
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 500);
 }
 
-function buildAllRowsForCSV() {
-  const all = loadAll();
-  const rows = [];
-
-  for (const childId of Object.keys(all)) {
-    const ch = getChildById(childId);
-    const cls = getClassById(ch?.classId || "");
-    const recs = all[childId] || {};
-
-    for (const dateStr of Object.keys(recs)) {
-      const r = recs[dateStr];
-      rows.push({
-        className: cls?.name || "",
-        childName: ch?.name || "",
-        childId,
-        date: dateStr,
-        ym: ymOf(dateStr),
-        height: Number(r.height).toFixed(1),
-        weight: Number(r.weight).toFixed(1),
-        updatedAt: String(r.updatedAt ?? "")
-      });
-    }
-  }
-
-  rows.sort((a, b) => (a.date + a.childId).localeCompare(b.date + b.childId));
-  return rows;
-}
-
-function exportCSVAll() {
-  const lines = [];
-  lines.push([
-    "className",
-    "childName",
-    "childId",
-    "date",
-    "yearMonth",
-    "height_cm",
-    "weight_kg"
-  ].join(","));
-
-  const rows = buildAllRowsForCSV();
-
-  for (const r of rows) {
-    lines.push([
-      csvEscape(r.className),
-      csvEscape(r.childName),
-      csvEscape(r.childId),
-      csvEscape(r.date),
-      csvEscape(r.ym),
-      r.height,
-      r.weight
-    ].join(","));
-  }
-
-  downloadCSV(lines.join("\n"), `growth_all_${todayISO().replaceAll("-", "")}.csv`);
-  showToast("CSV全園児");
-}
-
-function exportCSVBackup() {
-  const lines = [];
-  lines.push([
-    "className",
-    "childName",
-    "childId",
-    "date",
-    "yearMonth",
-    "height_cm",
-    "weight_kg",
-    "updatedAt"
-  ].join(","));
-
-  const rows = buildAllRowsForCSV();
-
-  for (const r of rows) {
-    lines.push([
-      csvEscape(r.className),
-      csvEscape(r.childName),
-      csvEscape(r.childId),
-      csvEscape(r.date),
-      csvEscape(r.ym),
-      r.height,
-      r.weight,
-      csvEscape(r.updatedAt)
-    ].join(","));
-  }
-
-  downloadCSV(lines.join("\n"), `growth_backup_${todayISO().replaceAll("-", "")}.csv`);
-  showToast("CSVバックアップ");
-}
-
-function exportCSVSelectedChild() {
-  const childId = currentChildId();
-
-  if (!childId) {
-    showToast("園児を選択");
-    return;
-  }
-
-  const all = loadAll();
-  const recs = all?.[childId] || {};
-  const ch = getChildById(childId);
-  const cls = getClassById(ch?.classId || "");
-
-  const lines = [];
-  lines.push(["className", "childName", "childId", "date", "yearMonth", "height_cm", "weight_kg"].join(","));
-
-  const rows = Object.keys(recs).sort().map((dateStr) => {
-    const r = recs[dateStr];
-    return {
-      className: cls?.name || "",
-      childName: ch?.name || "",
-      childId,
-      date: dateStr,
-      ym: ymOf(dateStr),
-      height: Number(r.height).toFixed(1),
-      weight: Number(r.weight).toFixed(1)
-    };
-  });
-
-  for (const r of rows) {
-    lines.push([
-      csvEscape(r.className),
-      csvEscape(r.childName),
-      csvEscape(r.childId),
-      csvEscape(r.date),
-      csvEscape(r.ym),
-      r.height,
-      r.weight
-    ].join(","));
-  }
-
-  downloadCSV(lines.join("\n"), `growth_${(cls?.name || "")}_${(ch?.name || "")}_${todayISO().replaceAll("-", "")}.csv`);
-  showToast("CSVこの園児");
-}
-
-function parseCSV(text) {
+function parseCsv(text) {
+  const normalized = String(text || "").replace(/^\uFEFF/, "");
   const rows = [];
   let row = [];
-  let field = "";
+  let cell = "";
+  let i = 0;
   let inQuotes = false;
 
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    const next = text[i + 1];
+  while (i < normalized.length) {
+    const ch = normalized[i];
 
     if (inQuotes) {
-      if (ch === '"' && next === '"') {
-        field += '"';
-        i++;
-      } else if (ch === '"') {
+      if (ch === '"') {
+        if (normalized[i + 1] === '"') {
+          cell += '"';
+          i += 2;
+          continue;
+        }
         inQuotes = false;
-      } else {
-        field += ch;
+        i += 1;
+        continue;
       }
+      cell += ch;
+      i += 1;
       continue;
     }
 
     if (ch === '"') {
       inQuotes = true;
+      i += 1;
       continue;
     }
 
     if (ch === ",") {
-      row.push(field);
-      field = "";
+      row.push(cell);
+      cell = "";
+      i += 1;
       continue;
     }
 
     if (ch === "\n") {
-      row.push(field);
+      row.push(cell);
       rows.push(row);
       row = [];
-      field = "";
+      cell = "";
+      i += 1;
       continue;
     }
 
     if (ch === "\r") {
+      i += 1;
       continue;
     }
 
-    field += ch;
+    cell += ch;
+    i += 1;
   }
 
-  if (field.length > 0 || row.length > 0) {
-    row.push(field);
+  row.push(cell);
+  if (row.length > 1 || row[0] !== "") {
     rows.push(row);
   }
 
   return rows;
 }
 
-function restoreFromCSV(file) {
-  if (!file) return;
+function normalizeRestoredRecord(childId, childName, classId, date, height, weight) {
+  const month = getMonthFromDate(date);
+  if (!month) return null;
+  const h = parseNumber(height);
+  const w = parseNumber(weight);
+  if (!date || h === null || w === null) return null;
 
-  const reader = new FileReader();
-
-  reader.onload = (e) => {
-    try {
-      const text = String(e.target?.result || "").replace(/^\uFEFF/, "");
-      const rows = parseCSV(text);
-
-      if (rows.length < 2) {
-        alert("CSVの内容が空です。");
-        return;
-      }
-
-      const header = rows[0].map((v) => String(v).trim());
-      const idxChildId = header.indexOf("childId");
-      const idxDate = header.indexOf("date");
-      const idxHeight = header.indexOf("height_cm");
-      const idxWeight = header.indexOf("weight_kg");
-      const idxUpdatedAt = header.indexOf("updatedAt");
-
-      if (idxChildId < 0 || idxDate < 0 || idxHeight < 0 || idxWeight < 0) {
-        alert("CSVの形式が違います。");
-        return;
-      }
-
-      const nextAll = {};
-
-      for (let i = 1; i < rows.length; i++) {
-        const cols = rows[i];
-        const childId = String(cols[idxChildId] ?? "").trim();
-        const dateStr = String(cols[idxDate] ?? "").trim();
-        const height = parseNum(cols[idxHeight]);
-        const weight = parseNum(cols[idxWeight]);
-        const updatedAtRaw = idxUpdatedAt >= 0 ? Number(cols[idxUpdatedAt] ?? "") : Date.now();
-
-        if (!childId || !dateStr) continue;
-        if (height === null || weight === null) continue;
-
-        if (!nextAll[childId]) nextAll[childId] = {};
-
-        nextAll[childId][dateStr] = {
-          date: dateStr,
-          height: round1(height),
-          weight: round1(weight),
-          updatedAt: Number.isFinite(updatedAtRaw) && updatedAtRaw > 0 ? updatedAtRaw : Date.now()
-        };
-      }
-
-      saveAll(nextAll);
-      setModeNew();
-      refreshStatus();
-      showView("input");
-      tbody.innerHTML = "";
-      const ctx = chartCanvas.getContext("2d");
-      ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
-      chartNote.textContent = "—";
-      showToast("CSV復元");
-    } catch {
-      alert("CSV復元に失敗しました。");
+  return {
+    month,
+    record: {
+      childId,
+      childName: normalizeText(childName),
+      classId,
+      date,
+      height: h,
+      weight: w
     }
   };
+}
 
-  reader.readAsText(file);
+async function restoreZip(file) {
+  const yes = window.confirm("現在のデータを置き換えて復元します。よろしいですか？");
+  if (!yes) return;
+
+  const zip = await JSZip.loadAsync(file);
+  const nextRecords = {};
+  const names = Object.keys(zip.files).filter((name) => /^growth_[a-z]+_\d{4}\.csv$/i.test(name));
+
+  for (const fileName of names) {
+    const matched = fileName.match(/^growth_([a-z]+)_(\d{4})\.csv$/i);
+    if (!matched) continue;
+
+    const classId = matched[1];
+    const fileObj = zip.files[fileName];
+    const text = await fileObj.async("string");
+    const rows = parseCsv(text);
+    if (!rows.length) continue;
+
+    for (let r = 1; r < rows.length; r += 1) {
+      const row = rows[r];
+      if (!row || !row.length) continue;
+
+      const childId = String(row[0] || "").trim();
+      const childName = normalizeText(String(row[1] || "").trim());
+      if (!childId) continue;
+
+      if (!nextRecords[childId]) nextRecords[childId] = {};
+
+      for (let i = 0; i < MONTHS.length; i += 1) {
+        const base = 2 + i * 3;
+        const date = String(row[base] || "").trim();
+        const height = String(row[base + 1] || "").trim();
+        const weight = String(row[base + 2] || "").trim();
+
+        const normalizedRecord = normalizeRestoredRecord(childId, childName, classId, date, height, weight);
+        if (!normalizedRecord) continue;
+
+        nextRecords[childId][monthKey(normalizedRecord.month)] = normalizedRecord.record;
+      }
+    }
+  }
+
+  RECORDS = nextRecords;
+  saveStorage();
+  resetForm();
+  setStatus("データを復元しました。", manageStatus);
+  setStatus("");
+  showToast("復元しました");
+
+  if (reportView.classList.contains("active")) {
+    const child = getSelectedChild();
+    if (child) renderReport(child.id);
+  }
+}
+
+function deleteAllData() {
+  const yes = window.confirm("全データを削除します。元に戻せません。よろしいですか？");
+  if (!yes) return;
+
+  RECORDS = {};
+  saveStorage();
+  resetForm();
+  tbody.innerHTML = "";
+  const ctx = chartCanvas.getContext("2d");
+  ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+  setStatus("全データを削除しました。", manageStatus);
+  showToast("全データを削除しました");
 }
 
 function bindEvents() {
-  el("saveBtn").addEventListener("click", () => {
-    const v = validateInputs();
-    if (!v.ok) {
-      showToast(v.msg);
-      return;
-    }
-
-    if (editContext && editContext.childId === v.childId) {
-      moveIfNeeded(v.childId, editContext.originalDate, v.date);
-    }
-
-    upsertRecord(v.childId, v.date, v.height, v.weight);
-    setModeNew();
-    refreshStatus();
-    showToast("保存");
+  classSelect.addEventListener("change", () => {
+    refreshChildOptions();
+    setStatus("");
   });
 
-  el("newBtn").addEventListener("click", () => {
-    setModeNew();
-    showToast("新規入力");
+  saveBtn.addEventListener("click", saveCurrentRecord);
+  clearBtn.addEventListener("click", resetForm);
+  openReportBtn.addEventListener("click", openReport);
+  openManageBtn.addEventListener("click", () => {
+    showView("manage");
+    setStatus("");
   });
-
-  el("openReportBtn").addEventListener("click", openReport);
-
-  el("backBtn").addEventListener("click", () => {
+  backFromReportBtn.addEventListener("click", () => {
+    showView("input");
+  });
+  backFromManageBtn.addEventListener("click", () => {
     showView("input");
   });
 
-  el("graphBtn").addEventListener("click", () => {
-    drawChartForSelected();
-    showToast("グラフ更新");
+  backupBtn.addEventListener("click", async () => {
+    try {
+      await backupZip();
+    } catch {
+      setStatus("バックアップに失敗しました。", manageStatus);
+      showToast("バックアップ失敗");
+    }
   });
-
-  el("csvAllBtn").addEventListener("click", exportCSVAll);
-  el("csvChildBtn").addEventListener("click", exportCSVSelectedChild);
-
-  backupBtn.addEventListener("click", exportCSVBackup);
 
   restoreBtn.addEventListener("click", () => {
     restoreFile.value = "";
     restoreFile.click();
   });
 
-  restoreFile.addEventListener("change", (ev) => {
-    const file = ev.target.files?.[0];
-    if (file) restoreFromCSV(file);
-  });
-
-  el("resetBtn").addEventListener("click", () => {
-    if (prompt("削除と入力") === "削除") {
-      localStorage.removeItem(STORAGE_KEY);
-      setModeNew();
-      refreshStatus();
-      showView("input");
-      tbody.innerHTML = "";
-      const ctx = chartCanvas.getContext("2d");
-      ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
-      chartNote.textContent = "—";
-      showToast("全削除");
+  restoreFile.addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      await restoreZip(file);
+    } catch {
+      setStatus("復元に失敗しました。Zipファイルを確認してください。", manageStatus);
+      showToast("復元失敗");
     }
   });
 
-  classSelect.addEventListener("change", () => {
-    refreshChildOptions();
-    setModeNew();
-    showToast("クラス切替");
-  });
+  deleteAllBtn.addEventListener("click", deleteAllData);
 
   childSelect.addEventListener("change", () => {
-    setModeNew();
-    refreshStatus();
+    if (reportView.classList.contains("active")) {
+      const child = getSelectedChild();
+      if (child) renderReport(child.id);
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    if (reportView.classList.contains("active")) {
+      const child = getSelectedChild();
+      if (child) renderReport(child.id);
+    }
   });
 }
 
-async function loadChildData() {
-  const res = await fetch("./child.json", { cache: "no-store" });
-
-  if (!res.ok) {
-    throw new Error("child.json の読み込みに失敗しました。");
-  }
-
-  const json = await res.json();
-
-  CLASSES = (json.classes || [])
-    .map((c) => ({
-      id: String(c.id ?? ""),
-      name: String(c.name ?? "")
-    }))
-    .filter((c) => c.id && c.name);
-
-  CHILDREN = (json.children || [])
-    .map((ch) => ({
-      id: String(ch.id ?? ""),
-      classId: String(ch.classId ?? ""),
-      className: String(ch.className ?? ""),
-      no: Number(ch.no ?? 0),
-      name: String(ch.name ?? ""),
-      gender: String(ch.gender ?? "")
-    }))
-    .filter((ch) => ch.id && ch.classId && ch.name);
-}
-
-async function initApp() {
+async function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
   try {
-    await loadChildData();
-    initSelectors();
-    setModeNew();
-    refreshStatus();
-    bindEvents();
-  } catch (err) {
-    console.error(err);
-    alert("child.json の読み込みに失敗しました。");
-    statusLine.textContent = "child.json の読み込みに失敗しました。";
+    await navigator.serviceWorker.register("./sw.js");
+  } catch {
   }
 }
 
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js");
-  });
+async function init() {
+  try {
+    await loadChildrenMaster();
+    RECORDS = loadStorage();
+    initSelectors();
+    bindEvents();
+    resetForm();
+    headerNote.textContent = "入力すると同じ月の古いデータは自動で置き換わります。";
+    await registerServiceWorker();
+  } catch {
+    setStatus("初期化に失敗しました。child.json を確認してください。");
+  }
 }
 
-initApp();
+init();
