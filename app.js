@@ -21,6 +21,93 @@ const CLASS_GROUPS = {
   nousagi: "senior",
   kamoshika: "senior"
 };
+const AVERAGE_GROWTH = [
+  { month: 0, boyHeightCm: 50.0, boyWeightKg: 3.3, girlHeightCm: 49.5, girlWeightKg: 3.2 },
+  { month: 1, boyHeightCm: 54.0, boyWeightKg: 4.2, girlHeightCm: 53.5, girlWeightKg: 4.0 },
+  { month: 2, boyHeightCm: 57.0, boyWeightKg: 5.0, girlHeightCm: 56.5, girlWeightKg: 4.7 },
+  { month: 3, boyHeightCm: 59.5, boyWeightKg: 5.7, girlHeightCm: 58.8, girlWeightKg: 5.3 },
+  { month: 4, boyHeightCm: 61.5, boyWeightKg: 6.3, girlHeightCm: 60.8, girlWeightKg: 5.8 },
+  { month: 5, boyHeightCm: 63.5, boyWeightKg: 6.8, girlHeightCm: 62.5, girlWeightKg: 6.2 },
+  { month: 6, boyHeightCm: 65.0, boyWeightKg: 7.3, girlHeightCm: 64.0, girlWeightKg: 6.6 },
+  { month: 7, boyHeightCm: 66.5, boyWeightKg: 7.6, girlHeightCm: 65.5, girlWeightKg: 7.0 },
+  { month: 8, boyHeightCm: 68.0, boyWeightKg: 7.9, girlHeightCm: 67.0, girlWeightKg: 7.3 },
+  { month: 9, boyHeightCm: 69.3, boyWeightKg: 8.2, girlHeightCm: 68.3, girlWeightKg: 7.6 },
+  { month: 10, boyHeightCm: 70.5, boyWeightKg: 8.5, girlHeightCm: 69.6, girlWeightKg: 7.9 },
+  { month: 11, boyHeightCm: 71.7, boyWeightKg: 8.7, girlHeightCm: 70.8, girlWeightKg: 8.2 },
+  { month: 12, boyHeightCm: 73.0, boyWeightKg: 9.0, girlHeightCm: 72.0, girlWeightKg: 8.5 },
+  { month: 13, boyHeightCm: 74.0, boyWeightKg: 9.3, girlHeightCm: 73.0, girlWeightKg: 8.8 },
+  { month: 14, boyHeightCm: 75.0, boyWeightKg: 9.6, girlHeightCm: 74.0, girlWeightKg: 9.0 },
+  { month: 15, boyHeightCm: 76.0, boyWeightKg: 9.9, girlHeightCm: 75.0, girlWeightKg: 9.3 },
+  { month: 16, boyHeightCm: 77.0, boyWeightKg: 10.2, girlHeightCm: 76.0, girlWeightKg: 9.6 },
+  { month: 17, boyHeightCm: 78.0, boyWeightKg: 10.5, girlHeightCm: 77.0, girlWeightKg: 9.8 },
+  { month: 18, boyHeightCm: 79.0, boyWeightKg: 10.8, girlHeightCm: 78.0, girlWeightKg: 10.1 },
+  { month: 19, boyHeightCm: 80.0, boyWeightKg: 11.0, girlHeightCm: 79.0, girlWeightKg: 10.4 },
+  { month: 20, boyHeightCm: 81.0, boyWeightKg: 11.3, girlHeightCm: 80.0, girlWeightKg: 10.6 },
+  { month: 21, boyHeightCm: 82.0, boyWeightKg: 11.6, girlHeightCm: 81.0, girlWeightKg: 10.9 },
+  { month: 22, boyHeightCm: 83.0, boyWeightKg: 11.9, girlHeightCm: 82.0, girlWeightKg: 11.1 },
+  { month: 23, boyHeightCm: 84.0, boyWeightKg: 12.2, girlHeightCm: 83.0, girlWeightKg: 11.4 },
+  { month: 24, boyHeightCm: 85.0, boyWeightKg: 12.5, girlHeightCm: 84.0, girlWeightKg: 11.7 },
+  { month: 25, boyHeightCm: 86.0, boyWeightKg: 12.8, girlHeightCm: 85.0, girlWeightKg: 12.0 },
+  { month: 26, boyHeightCm: 87.0, boyWeightKg: 13.1, girlHeightCm: 86.0, girlWeightKg: 12.3 },
+  { month: 27, boyHeightCm: 88.0, boyWeightKg: 13.4, girlHeightCm: 87.0, girlWeightKg: 12.6 },
+  { month: 28, boyHeightCm: 89.0, boyWeightKg: 13.7, girlHeightCm: 88.0, girlWeightKg: 12.9 },
+  { month: 29, boyHeightCm: 90.0, boyWeightKg: 14.0, girlHeightCm: 89.0, girlWeightKg: 13.2 },
+  { month: 30, boyHeightCm: 91.0, boyWeightKg: 14.3, girlHeightCm: 90.0, girlWeightKg: 13.5 },
+  { month: 31, boyHeightCm: 92.0, boyWeightKg: 14.6, girlHeightCm: 91.0, girlWeightKg: 13.8 },
+  { month: 32, boyHeightCm: 93.0, boyWeightKg: 14.9, girlHeightCm: 92.0, girlWeightKg: 14.1 },
+  { month: 33, boyHeightCm: 94.0, boyWeightKg: 15.2, girlHeightCm: 93.0, girlWeightKg: 14.4 },
+  { month: 34, boyHeightCm: 95.0, boyWeightKg: 15.5, girlHeightCm: 94.0, girlWeightKg: 14.7 },
+  { month: 35, boyHeightCm: 96.0, boyWeightKg: 15.8, girlHeightCm: 95.0, girlWeightKg: 15.0 },
+  { month: 36, boyHeightCm: 97.0, boyWeightKg: 16.1, girlHeightCm: 96.0, girlWeightKg: 15.3 },
+  { month: 37, boyHeightCm: 98.0, boyWeightKg: 16.3, girlHeightCm: 97.0, girlWeightKg: 15.5 },
+  { month: 38, boyHeightCm: 99.0, boyWeightKg: 16.5, girlHeightCm: 98.0, girlWeightKg: 15.7 },
+  { month: 39, boyHeightCm: 100.0, boyWeightKg: 16.7, girlHeightCm: 99.0, girlWeightKg: 15.9 },
+  { month: 40, boyHeightCm: 101.0, boyWeightKg: 16.9, girlHeightCm: 100.0, girlWeightKg: 16.1 },
+  { month: 41, boyHeightCm: 102.0, boyWeightKg: 17.1, girlHeightCm: 101.0, girlWeightKg: 16.3 },
+  { month: 42, boyHeightCm: 103.0, boyWeightKg: 17.3, girlHeightCm: 102.0, girlWeightKg: 16.5 },
+  { month: 43, boyHeightCm: 104.0, boyWeightKg: 17.5, girlHeightCm: 103.0, girlWeightKg: 16.7 },
+  { month: 44, boyHeightCm: 105.0, boyWeightKg: 17.7, girlHeightCm: 104.0, girlWeightKg: 16.9 },
+  { month: 45, boyHeightCm: 106.0, boyWeightKg: 17.9, girlHeightCm: 105.0, girlWeightKg: 17.1 },
+  { month: 46, boyHeightCm: 107.0, boyWeightKg: 18.1, girlHeightCm: 106.0, girlWeightKg: 17.3 },
+  { month: 47, boyHeightCm: 108.0, boyWeightKg: 18.3, girlHeightCm: 107.0, girlWeightKg: 17.5 },
+  { month: 48, boyHeightCm: 109.0, boyWeightKg: 18.5, girlHeightCm: 108.0, girlWeightKg: 17.7 },
+  { month: 49, boyHeightCm: 110.0, boyWeightKg: 18.7, girlHeightCm: 109.0, girlWeightKg: 17.9 },
+  { month: 50, boyHeightCm: 111.0, boyWeightKg: 18.9, girlHeightCm: 110.0, girlWeightKg: 18.1 },
+  { month: 51, boyHeightCm: 112.0, boyWeightKg: 19.1, girlHeightCm: 111.0, girlWeightKg: 18.3 },
+  { month: 52, boyHeightCm: 113.0, boyWeightKg: 19.3, girlHeightCm: 112.0, girlWeightKg: 18.5 },
+  { month: 53, boyHeightCm: 114.0, boyWeightKg: 19.5, girlHeightCm: 113.0, girlWeightKg: 18.7 },
+  { month: 54, boyHeightCm: 115.0, boyWeightKg: 19.7, girlHeightCm: 114.0, girlWeightKg: 18.9 },
+  { month: 55, boyHeightCm: 116.0, boyWeightKg: 19.9, girlHeightCm: 115.0, girlWeightKg: 19.1 },
+  { month: 56, boyHeightCm: 117.0, boyWeightKg: 20.1, girlHeightCm: 116.0, girlWeightKg: 19.3 },
+  { month: 57, boyHeightCm: 118.0, boyWeightKg: 20.3, girlHeightCm: 117.0, girlWeightKg: 19.5 },
+  { month: 58, boyHeightCm: 119.0, boyWeightKg: 20.5, girlHeightCm: 118.0, girlWeightKg: 19.7 },
+  { month: 59, boyHeightCm: 120.0, boyWeightKg: 20.7, girlHeightCm: 119.0, girlWeightKg: 19.9 },
+  { month: 60, boyHeightCm: 121.0, boyWeightKg: 21.0, girlHeightCm: 120.0, girlWeightKg: 20.2 },
+  { month: 61, boyHeightCm: 122.0, boyWeightKg: 21.2, girlHeightCm: 121.0, girlWeightKg: 20.4 },
+  { month: 62, boyHeightCm: 123.0, boyWeightKg: 21.4, girlHeightCm: 122.0, girlWeightKg: 20.6 },
+  { month: 63, boyHeightCm: 124.0, boyWeightKg: 21.6, girlHeightCm: 123.0, girlWeightKg: 20.8 },
+  { month: 64, boyHeightCm: 125.0, boyWeightKg: 21.8, girlHeightCm: 124.0, girlWeightKg: 21.0 },
+  { month: 65, boyHeightCm: 126.0, boyWeightKg: 22.0, girlHeightCm: 125.0, girlWeightKg: 21.2 },
+  { month: 66, boyHeightCm: 127.0, boyWeightKg: 22.2, girlHeightCm: 126.0, girlWeightKg: 21.4 },
+  { month: 67, boyHeightCm: 128.0, boyWeightKg: 22.4, girlHeightCm: 127.0, girlWeightKg: 21.6 },
+  { month: 68, boyHeightCm: 129.0, boyWeightKg: 22.6, girlHeightCm: 128.0, girlWeightKg: 21.8 },
+  { month: 69, boyHeightCm: 130.0, boyWeightKg: 22.8, girlHeightCm: 129.0, girlWeightKg: 22.0 },
+  { month: 70, boyHeightCm: 131.0, boyWeightKg: 23.0, girlHeightCm: 130.0, girlWeightKg: 22.2 },
+  { month: 71, boyHeightCm: 132.0, boyWeightKg: 23.2, girlHeightCm: 131.0, girlWeightKg: 22.4 },
+  { month: 72, boyHeightCm: 133.0, boyWeightKg: 23.5, girlHeightCm: 132.0, girlWeightKg: 22.7 },
+  { month: 73, boyHeightCm: 134.0, boyWeightKg: 23.7, girlHeightCm: 133.0, girlWeightKg: 22.9 },
+  { month: 74, boyHeightCm: 135.0, boyWeightKg: 23.9, girlHeightCm: 134.0, girlWeightKg: 23.1 },
+  { month: 75, boyHeightCm: 136.0, boyWeightKg: 24.1, girlHeightCm: 135.0, girlWeightKg: 23.3 },
+  { month: 76, boyHeightCm: 137.0, boyWeightKg: 24.3, girlHeightCm: 136.0, girlWeightKg: 23.5 },
+  { month: 77, boyHeightCm: 138.0, boyWeightKg: 24.5, girlHeightCm: 137.0, girlWeightKg: 23.7 },
+  { month: 78, boyHeightCm: 139.0, boyWeightKg: 24.7, girlHeightCm: 138.0, girlWeightKg: 23.9 },
+  { month: 79, boyHeightCm: 140.0, boyWeightKg: 24.9, girlHeightCm: 139.0, girlWeightKg: 24.1 },
+  { month: 80, boyHeightCm: 141.0, boyWeightKg: 25.1, girlHeightCm: 140.0, girlWeightKg: 24.3 },
+  { month: 81, boyHeightCm: 142.0, boyWeightKg: 25.3, girlHeightCm: 141.0, girlWeightKg: 24.5 },
+  { month: 82, boyHeightCm: 143.0, boyWeightKg: 25.5, girlHeightCm: 142.0, girlWeightKg: 24.7 },
+  { month: 83, boyHeightCm: 144.0, boyWeightKg: 25.7, girlHeightCm: 143.0, girlWeightKg: 24.9 }
+];
+const AVERAGE_GROWTH_MAP = new Map(AVERAGE_GROWTH.map((item) => [item.month, item]));
 
 const el = (id) => document.getElementById(id);
 
@@ -204,18 +291,23 @@ function normalizeChildId(rawChild) {
   return `${classId}:${name}`;
 }
 
+function normalizeGender(value) {
+  const text = normalizeText(value).toLowerCase();
+  if (text === "m" || text === "male" || text === "boy" || text === "男") return "m";
+  if (text === "f" || text === "female" || text === "girl" || text === "女") return "f";
+  return "";
+}
+
 function normalizeChildrenPayload(payload) {
   if (Array.isArray(payload)) {
-    const children = payload.map((item, index) => {
-      const classId = String(item.classId || item.class || item.group || "");
-      const name = normalizeText(item.name || item.childName || item.fullName || "");
-      return {
-        id: normalizeChildId(item),
-        classId,
-        name,
-        no: Number(item.no) || index + 1
-      };
-    });
+    const children = payload.map((item, index) => ({
+      id: normalizeChildId(item),
+      classId: String(item.classId || item.class || item.group || ""),
+      name: normalizeText(item.name || item.childName || item.fullName || ""),
+      no: Number(item.no) || index + 1,
+      gender: normalizeGender(item.gender || item.sex),
+      birthDate: normalizeDateString(item.birthDate || item.birthday || item.birth)
+    }));
     return { classes: DEFAULT_CLASSES.slice(), children };
   }
 
@@ -232,7 +324,9 @@ function normalizeChildrenPayload(payload) {
       id: normalizeChildId(item),
       classId: String(item.classId || item.class || item.group || ""),
       name: normalizeText(item.name || item.childName || item.fullName || ""),
-      no: Number(item.no) || index + 1
+      no: Number(item.no) || index + 1,
+      gender: normalizeGender(item.gender || item.sex),
+      birthDate: normalizeDateString(item.birthDate || item.birthday || item.birth)
     }));
 
     return { classes, children };
@@ -421,7 +515,9 @@ function renderReport(childId) {
   const className = normalizeClassName(child ? child.classId : getChildClassId(childId));
 
   reportTitle.textContent = child ? `${className}組　${child.name}` : childId;
-  chartNote.textContent = "最新のデータが上に表示されます。";
+  chartNote.textContent = child?.gender && child?.birthDate
+    ? "実線＝実測値、破線＝月齢平均です。平均は性別と誕生日から計算しています。"
+    : "最新のデータが上に表示されます。";
 
   renderChart(child, rows);
   renderTable(rows);
@@ -518,6 +614,62 @@ function getMonthLabel(month) {
   return `${month}月`;
 }
 
+function parseSlashDateToDate(value) {
+  const normalized = normalizeDateString(value);
+  if (!normalized) return null;
+  const match = normalized.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function getMonthAgeAtDate(birthDate, targetDate) {
+  const birth = parseSlashDateToDate(birthDate);
+  const target = parseSlashDateToDate(targetDate);
+  if (!birth || !target) return null;
+  if (target < birth) return null;
+
+  let months = (target.getFullYear() - birth.getFullYear()) * 12 + (target.getMonth() - birth.getMonth());
+  if (target.getDate() < birth.getDate()) {
+    months -= 1;
+  }
+  return months >= 0 ? months : null;
+}
+
+function getAverageForMonthAge(gender, monthAge) {
+  const row = AVERAGE_GROWTH_MAP.get(monthAge);
+  if (!row) return null;
+  if (gender === "m") {
+    return { height: row.boyHeightCm, weight: row.boyWeightKg };
+  }
+  if (gender === "f") {
+    return { height: row.girlHeightCm, weight: row.girlWeightKg };
+  }
+  return null;
+}
+
+function buildAveragePoints(child, rows, xOf, yOf, scale) {
+  if (!child?.gender || !child?.birthDate) {
+    return { height: [], weight: [] };
+  }
+
+  const ordered = [...rows].sort((a, b) => MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month));
+  const heightPoints = [];
+  const weightPoints = [];
+
+  for (const row of ordered) {
+    const monthAge = getMonthAgeAtDate(child.birthDate, row.date);
+    if (monthAge === null) continue;
+    const avg = getAverageForMonthAge(child.gender, monthAge);
+    if (!avg) continue;
+
+    const x = xOf(row.month);
+    heightPoints.push({ x, y: yOf(avg.height, scale.heightMin, scale.heightMax) });
+    weightPoints.push({ x, y: yOf(avg.weight, scale.weightMin, scale.weightMax) });
+  }
+
+  return { height: heightPoints, weight: weightPoints };
+}
+
 function renderChart(child, rows) {
   const ctx = chartCanvas.getContext("2d");
   const cssWidth = chartCanvas.clientWidth || 900;
@@ -534,7 +686,7 @@ function renderChart(child, rows) {
 
   ctx.clearRect(0, 0, width, height);
 
-  const margin = { top: 28, right: 70, bottom: 56, left: 70 };
+  const margin = { top: 28, right: 90, bottom: 56, left: 70 };
   const plotW = width - margin.left - margin.right;
   const plotH = height - margin.top - margin.bottom;
 
@@ -617,23 +769,30 @@ function renderChart(child, rows) {
     y: yOf(row.weight, scale.weightMin, scale.weightMax)
   }));
 
-  drawLine(ctx, heightPoints, "#2e7d32", true);
-  drawLine(ctx, weightPoints, "#1565c0", true);
+  const averagePoints = buildAveragePoints(child, ordered, xOf, yOf, scale);
 
-  drawLegend(ctx, width - 170, margin.top + 10);
+  drawLine(ctx, averagePoints.height, "#8bc34a", false, true);
+  drawLine(ctx, averagePoints.weight, "#64b5f6", false, true);
+  drawLine(ctx, heightPoints, "#2e7d32", true, false);
+  drawLine(ctx, weightPoints, "#1565c0", true, false);
+
+  drawLegend(ctx, width - 190, margin.top + 10, averagePoints.height.length > 0 || averagePoints.weight.length > 0);
 }
 
-function drawLine(ctx, points, color, drawDots) {
+function drawLine(ctx, points, color, drawDots, dashed) {
   if (!points.length) return;
 
+  ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = 3;
+  ctx.setLineDash(dashed ? [8, 6] : []);
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
   for (let i = 1; i < points.length; i += 1) {
     ctx.lineTo(points[i].x, points[i].y);
   }
   ctx.stroke();
+  ctx.restore();
 
   if (!drawDots) return;
 
@@ -648,41 +807,44 @@ function drawLine(ctx, points, color, drawDots) {
   }
 }
 
-function drawLegend(ctx, x, y) {
+function drawLegend(ctx, x, y, hasAverage) {
+  const boxHeight = hasAverage ? 90 : 54;
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(x, y, 150, 54);
+  ctx.fillRect(x, y, 170, boxHeight);
   ctx.strokeStyle = "#d9e2ec";
-  ctx.strokeRect(x, y, 150, 54);
+  ctx.strokeRect(x, y, 170, boxHeight);
 
-  ctx.strokeStyle = "#2e7d32";
+  drawLegendItem(ctx, x, y + 18, "#2e7d32", "身長", false);
+  drawLegendItem(ctx, x, y + 38, "#1565c0", "体重", false);
+
+  if (hasAverage) {
+    drawLegendItem(ctx, x, y + 58, "#8bc34a", "平均身長", true);
+    drawLegendItem(ctx, x, y + 78, "#64b5f6", "平均体重", true);
+  }
+}
+
+function drawLegendItem(ctx, x, y, color, label, dashed) {
+  ctx.save();
+  ctx.strokeStyle = color;
   ctx.lineWidth = 3;
+  ctx.setLineDash(dashed ? [8, 6] : []);
   ctx.beginPath();
-  ctx.moveTo(x + 12, y + 18);
-  ctx.lineTo(x + 42, y + 18);
+  ctx.moveTo(x + 12, y);
+  ctx.lineTo(x + 42, y);
   ctx.stroke();
-  ctx.fillStyle = "#2e7d32";
-  ctx.beginPath();
-  ctx.arc(x + 27, y + 18, 4.5, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.restore();
+
+  if (!dashed) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x + 27, y, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   ctx.fillStyle = "#2f4b5f";
   ctx.font = "12px sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText("身長", x + 52, y + 22);
-
-  ctx.strokeStyle = "#1565c0";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(x + 12, y + 38);
-  ctx.lineTo(x + 42, y + 38);
-  ctx.stroke();
-  ctx.fillStyle = "#1565c0";
-  ctx.beginPath();
-  ctx.arc(x + 27, y + 38, 4.5, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "#2f4b5f";
-  ctx.fillText("体重", x + 52, y + 42);
+  ctx.fillText(label, x + 52, y + 4);
 }
 
 function toCsvCell(value) {
