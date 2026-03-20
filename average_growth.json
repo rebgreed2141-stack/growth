@@ -1,122 +1,86 @@
-{
-  "0": {
-    "boy": {
-      "height": 50.0,
-      "weight": 3.3
-    },
-    "girl": {
-      "height": 49.5,
-      "weight": 3.2
-    }
-  },
-  "1": {
-    "boy": {
-      "height": 54.0,
-      "weight": 4.2
-    },
-    "girl": {
-      "height": 53.5,
-      "weight": 4.0
-    }
-  },
-  "2": {
-    "boy": {
-      "height": 57.0,
-      "weight": 5.0
-    },
-    "girl": {
-      "height": 56.5,
-      "weight": 4.7
-    }
-  },
-  "3": {
-    "boy": {
-      "height": 59.5,
-      "weight": 5.7
-    },
-    "girl": {
-      "height": 58.8,
-      "weight": 5.3
-    }
-  },
-  "4": {
-    "boy": {
-      "height": 61.5,
-      "weight": 6.3
-    },
-    "girl": {
-      "height": 60.8,
-      "weight": 5.8
-    }
-  },
-  "5": {
-    "boy": {
-      "height": 63.5,
-      "weight": 6.8
-    },
-    "girl": {
-      "height": 62.5,
-      "weight": 6.2
-    }
-  },
-  "6": {
-    "boy": {
-      "height": 65.0,
-      "weight": 7.3
-    },
-    "girl": {
-      "height": 64.0,
-      "weight": 6.6
-    }
-  },
-  "7": {
-    "boy": {
-      "height": 66.5,
-      "weight": 7.6
-    },
-    "girl": {
-      "height": 65.5,
-      "weight": 7.0
-    }
-  },
-  "8": {
-    "boy": {
-      "height": 68.0,
-      "weight": 7.9
-    },
-    "girl": {
-      "height": 67.0,
-      "weight": 7.3
-    }
-  },
-  "9": {
-    "boy": {
-      "height": 69.3,
-      "weight": 8.2
-    },
-    "girl": {
-      "height": 68.3,
-      "weight": 7.6
-    }
-  },
-  "10": {
-    "boy": {
-      "height": 70.5,
-      "weight": 8.5
-    },
-    "girl": {
-      "height": 69.6,
-      "weight": 7.9
-    }
-  },
-  "11": {
-    "boy": {
-      "height": 71.7,
-      "weight": 8.7
-    },
-    "girl": {
-      "height": 70.8,
-      "weight": 8.2
-    }
-  }
-}
+[
+{"month":0,"boy_height_cm":49,"boy_weight_kg":3,"girl_height_cm":48.4,"girl_weight_kg":3},
+{"month":1,"boy_height_cm":53.5,"boy_weight_kg":4.3,"girl_height_cm":52.6,"girl_weight_kg":4.1},
+{"month":2,"boy_height_cm":57.9,"boy_weight_kg":5.5,"girl_height_cm":56.7,"girl_weight_kg":5.2},
+{"month":3,"boy_height_cm":61.4,"boy_weight_kg":6.4,"girl_height_cm":60,"girl_weight_kg":6},
+{"month":4,"boy_height_cm":64.2,"boy_weight_kg":7.1,"girl_height_cm":62.6,"girl_weight_kg":6.6},
+{"month":5,"boy_height_cm":66.2,"boy_weight_kg":7.7,"girl_height_cm":64.6,"girl_weight_kg":7},
+{"month":6,"boy_height_cm":67.8,"boy_weight_kg":8,"girl_height_cm":66.2,"girl_weight_kg":7.5},
+{"month":7,"boy_height_cm":69.2,"boy_weight_kg":8.2,"girl_height_cm":67.5,"girl_weight_kg":7.8},
+{"month":8,"boy_height_cm":70.5,"boy_weight_kg":8.6,"girl_height_cm":68.9,"girl_weight_kg":8},
+{"month":9,"boy_height_cm":71.7,"boy_weight_kg":8.9,"girl_height_cm":70,"girl_weight_kg":8.2},
+{"month":10,"boy_height_cm":72.8,"boy_weight_kg":9.1,"girl_height_cm":71.2,"girl_weight_kg":8.5},
+{"month":11,"boy_height_cm":73.9,"boy_weight_kg":9.2,"girl_height_cm":72.3,"girl_weight_kg":8.6},
+{"month":12,"boy_height_cm":75,"boy_weight_kg":9.3,"girl_height_cm":73.4,"girl_weight_kg":8.7},
+{"month":13,"boy_height_cm":76,"boy_weight_kg":9.5,"girl_height_cm":74.5,"girl_weight_kg":9},
+{"month":14,"boy_height_cm":76.9,"boy_weight_kg":9.8,"girl_height_cm":75.5,"girl_weight_kg":9.2},
+{"month":15,"boy_height_cm":77.8,"boy_weight_kg":9.9,"girl_height_cm":76.5,"girl_weight_kg":9.3},
+{"month":16,"boy_height_cm":78.7,"boy_weight_kg":10.1,"girl_height_cm":77.5,"girl_weight_kg":9.5},
+{"month":17,"boy_height_cm":79.6,"boy_weight_kg":10.3,"girl_height_cm":78.4,"girl_weight_kg":9.7},
+{"month":18,"boy_height_cm":80.5,"boy_weight_kg":10.5,"girl_height_cm":79.4,"girl_weight_kg":9.9},
+{"month":19,"boy_height_cm":81.4,"boy_weight_kg":10.6,"girl_height_cm":80.3,"girl_weight_kg":10.2},
+{"month":20,"boy_height_cm":82.3,"boy_weight_kg":10.9,"girl_height_cm":81.2,"girl_weight_kg":10.4},
+{"month":21,"boy_height_cm":83.1,"boy_weight_kg":11.2,"girl_height_cm":82,"girl_weight_kg":10.4},
+{"month":22,"boy_height_cm":83.9,"boy_weight_kg":11.3,"girl_height_cm":82.8,"girl_weight_kg":10.7},
+{"month":23,"boy_height_cm":84.7,"boy_weight_kg":11.4,"girl_height_cm":83.5,"girl_weight_kg":11},
+{"month":24,"boy_height_cm":85.4,"boy_weight_kg":11.6,"girl_height_cm":84.3,"girl_weight_kg":11},
+{"month":25,"boy_height_cm":86.2,"boy_weight_kg":11.8,"girl_height_cm":85,"girl_weight_kg":11.2},
+{"month":26,"boy_height_cm":86.9,"boy_weight_kg":12,"girl_height_cm":85.7,"girl_weight_kg":11.4},
+{"month":27,"boy_height_cm":87.6,"boy_weight_kg":12.1,"girl_height_cm":86.4,"girl_weight_kg":11.6},
+{"month":28,"boy_height_cm":88.3,"boy_weight_kg":12.3,"girl_height_cm":87.1,"girl_weight_kg":11.8},
+{"month":29,"boy_height_cm":88.9,"boy_weight_kg":12.5,"girl_height_cm":87.7,"girl_weight_kg":12},
+{"month":30,"boy_height_cm":89.6,"boy_weight_kg":12.7,"girl_height_cm":88.4,"girl_weight_kg":12.2},
+{"month":31,"boy_height_cm":90.2,"boy_weight_kg":12.8,"girl_height_cm":89,"girl_weight_kg":12.3},
+{"month":32,"boy_height_cm":90.8,"boy_weight_kg":13,"girl_height_cm":89.6,"girl_weight_kg":12.5},
+{"month":33,"boy_height_cm":91.5,"boy_weight_kg":13.2,"girl_height_cm":90.3,"girl_weight_kg":12.7},
+{"month":34,"boy_height_cm":92.1,"boy_weight_kg":13.3,"girl_height_cm":90.9,"girl_weight_kg":12.8},
+{"month":35,"boy_height_cm":92.7,"boy_weight_kg":13.5,"girl_height_cm":91.6,"girl_weight_kg":13},
+{"month":36,"boy_height_cm":93.3,"boy_weight_kg":13.7,"girl_height_cm":92.2,"girl_weight_kg":13.1},
+{"month":37,"boy_height_cm":94,"boy_weight_kg":13.9,"girl_height_cm":92.8,"girl_weight_kg":13.3},
+{"month":38,"boy_height_cm":94.6,"boy_weight_kg":14,"girl_height_cm":93.5,"girl_weight_kg":13.4},
+{"month":39,"boy_height_cm":95.1,"boy_weight_kg":14.2,"girl_height_cm":94.1,"girl_weight_kg":13.6},
+{"month":40,"boy_height_cm":95.7,"boy_weight_kg":14.4,"girl_height_cm":94.7,"girl_weight_kg":13.8},
+{"month":41,"boy_height_cm":96.3,"boy_weight_kg":14.5,"girl_height_cm":95.3,"girl_weight_kg":13.9},
+{"month":42,"boy_height_cm":96.9,"boy_weight_kg":14.7,"girl_height_cm":95.9,"girl_weight_kg":14.1},
+{"month":43,"boy_height_cm":97.5,"boy_weight_kg":14.8,"girl_height_cm":96.5,"girl_weight_kg":14.3},
+{"month":44,"boy_height_cm":98,"boy_weight_kg":15,"girl_height_cm":97.1,"girl_weight_kg":14.4},
+{"month":45,"boy_height_cm":98.6,"boy_weight_kg":15.1,"girl_height_cm":97.7,"girl_weight_kg":14.6},
+{"month":46,"boy_height_cm":99.1,"boy_weight_kg":15.3,"girl_height_cm":98.3,"girl_weight_kg":14.8},
+{"month":47,"boy_height_cm":99.7,"boy_weight_kg":15.4,"girl_height_cm":98.9,"girl_weight_kg":15},
+{"month":48,"boy_height_cm":100.2,"boy_weight_kg":15.6,"girl_height_cm":99.5,"girl_weight_kg":15.2},
+{"month":49,"boy_height_cm":100.8,"boy_weight_kg":15.8,"girl_height_cm":100,"girl_weight_kg":15.4},
+{"month":50,"boy_height_cm":101.3,"boy_weight_kg":15.9,"girl_height_cm":100.6,"girl_weight_kg":15.6},
+{"month":51,"boy_height_cm":101.9,"boy_weight_kg":16.1,"girl_height_cm":101.2,"girl_weight_kg":15.8},
+{"month":52,"boy_height_cm":102.4,"boy_weight_kg":16.3,"girl_height_cm":101.7,"girl_weight_kg":15.9},
+{"month":53,"boy_height_cm":103,"boy_weight_kg":16.4,"girl_height_cm":102.3,"girl_weight_kg":16.1},
+{"month":54,"boy_height_cm":103.5,"boy_weight_kg":16.6,"girl_height_cm":102.8,"girl_weight_kg":16.3},
+{"month":55,"boy_height_cm":104,"boy_weight_kg":16.7,"girl_height_cm":103.4,"girl_weight_kg":16.4},
+{"month":56,"boy_height_cm":104.6,"boy_weight_kg":16.9,"girl_height_cm":103.9,"girl_weight_kg":16.6},
+{"month":57,"boy_height_cm":105.1,"boy_weight_kg":17,"girl_height_cm":104.5,"girl_weight_kg":16.8},
+{"month":58,"boy_height_cm":105.6,"boy_weight_kg":17.3,"girl_height_cm":105,"girl_weight_kg":17},
+{"month":59,"boy_height_cm":106.2,"boy_weight_kg":17.5,"girl_height_cm":105.6,"girl_weight_kg":17.2},
+{"month":60,"boy_height_cm":106.7,"boy_weight_kg":17.7,"girl_height_cm":106.2,"girl_weight_kg":17.4},
+{"month":61,"boy_height_cm":107.3,"boy_weight_kg":17.9,"girl_height_cm":106.7,"girl_weight_kg":17.6},
+{"month":62,"boy_height_cm":107.8,"boy_weight_kg":18.1,"girl_height_cm":107.3,"girl_weight_kg":17.8},
+{"month":63,"boy_height_cm":108.3,"boy_weight_kg":18.3,"girl_height_cm":107.8,"girl_weight_kg":18},
+{"month":64,"boy_height_cm":108.9,"boy_weight_kg":18.5,"girl_height_cm":108.4,"girl_weight_kg":18.1},
+{"month":65,"boy_height_cm":109.4,"boy_weight_kg":18.7,"girl_height_cm":108.9,"girl_weight_kg":18.2},
+{"month":66,"boy_height_cm":111.6,"boy_weight_kg":19.4,"girl_height_cm":110.6,"girl_weight_kg":19},
+{"month":67,"boy_height_cm":112.1,"boy_weight_kg":19.6,"girl_height_cm":111.1,"girl_weight_kg":19.2},
+{"month":68,"boy_height_cm":112.6,"boy_weight_kg":19.8,"girl_height_cm":111.6,"girl_weight_kg":19.4},
+{"month":69,"boy_height_cm":113.1,"boy_weight_kg":20.1,"girl_height_cm":112.1,"girl_weight_kg":19.6},
+{"month":70,"boy_height_cm":113.6,"boy_weight_kg":20.3,"girl_height_cm":112.6,"girl_weight_kg":19.8},
+{"month":71,"boy_height_cm":114.1,"boy_weight_kg":20.5,"girl_height_cm":113.1,"girl_weight_kg":20},
+{"month":72,"boy_height_cm":114.6,"boy_weight_kg":20.7,"girl_height_cm":113.7,"girl_weight_kg":20.3},
+{"month":73,"boy_height_cm":115,"boy_weight_kg":20.9,"girl_height_cm":114.2,"girl_weight_kg":20.5},
+{"month":74,"boy_height_cm":115.5,"boy_weight_kg":21.1,"girl_height_cm":114.7,"girl_weight_kg":20.7},
+{"month":75,"boy_height_cm":116,"boy_weight_kg":21.4,"girl_height_cm":115.2,"girl_weight_kg":20.9},
+{"month":76,"boy_height_cm":116.5,"boy_weight_kg":21.6,"girl_height_cm":115.7,"girl_weight_kg":21.1},
+{"month":77,"boy_height_cm":117,"boy_weight_kg":21.8,"girl_height_cm":116.2,"girl_weight_kg":21.3},
+{"month":78,"boy_height_cm":117.5,"boy_weight_kg":22,"girl_height_cm":116.7,"girl_weight_kg":21.5},
+{"month":79,"boy_height_cm":118,"boy_weight_kg":22.2,"girl_height_cm":117.2,"girl_weight_kg":21.7},
+{"month":80,"boy_height_cm":118.5,"boy_weight_kg":22.5,"girl_height_cm":117.7,"girl_weight_kg":22},
+{"month":81,"boy_height_cm":119,"boy_weight_kg":22.7,"girl_height_cm":118.2,"girl_weight_kg":22.2},
+{"month":82,"boy_height_cm":119.5,"boy_weight_kg":23,"girl_height_cm":118.7,"girl_weight_kg":22.4},
+{"month":83,"boy_height_cm":120,"boy_weight_kg":23.2,"girl_height_cm":119.2,"girl_weight_kg":22.7}
+]
