@@ -3,19 +3,47 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>園児 身長＆体重 管理</title>
+  <title>身長体重管理</title>
   <meta name="theme-color" content="#4CAF50" />
   <link rel="manifest" href="./manifest.json" />
   <link rel="stylesheet" href="./styles.css" />
+
+  <style>
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .app-title-block {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-version {
+      font-size: 0.9rem;
+      color: #6b7c8f;
+      font-weight: 600;
+    }
+  </style>
 </head>
+
 <body>
   <div class="app-shell">
     <header class="app-header">
-      <h1>園児 身長＆体重 管理</h1>
-      <p id="headerNote" class="header-note">入力すると同じ月の古いデータは自動で置き換わります。</p>
+      <div class="app-title-block">
+        <h1>園児 身長＆体重 管理</h1>
+        <p id="headerNote" class="header-note">
+          入力すると同じ月の古いデータは自動で置き換わります。
+        </p>
+      </div>
+
+      <!-- ★ 右端固定 -->
+      <div class="app-version">Ver 1.0.0</div>
     </header>
 
     <main class="main-layout">
+
       <section id="inputView" class="panel view active">
         <div class="card">
           <div class="form-grid">
@@ -34,26 +62,26 @@
               <input id="dateInput" type="date" />
             </label>
 
-            <div class="field field-spacer" aria-hidden="true"></div>
+            <div class="field field-spacer"></div>
 
             <label class="field">
               <span>身長（cm）</span>
-              <input id="heightInput" type="number" inputmode="decimal" step="0.1" min="30" max="160" />
+              <input id="heightInput" type="number" step="0.1" />
             </label>
 
             <label class="field">
               <span>体重（kg）</span>
-              <input id="weightInput" type="number" inputmode="decimal" step="0.1" min="1" max="40" />
+              <input id="weightInput" type="number" step="0.1" />
             </label>
           </div>
 
           <div id="modeView" class="mode-view">新規登録</div>
 
           <div class="button-grid main-buttons">
-            <button id="saveBtn" type="button" class="btn primary">登録 / 更新</button>
-            <button id="clearBtn" type="button" class="btn">クリア</button>
-            <button id="openReportBtn" type="button" class="btn">グラフ＆一覧</button>
-            <button id="openManageBtn" type="button" class="btn">管理</button>
+            <button id="saveBtn" class="btn primary">登録 / 更新</button>
+            <button id="clearBtn" class="btn">クリア</button>
+            <button id="openReportBtn" class="btn">グラフ＆一覧</button>
+            <button id="openManageBtn" class="btn">管理</button>
           </div>
 
           <div id="statusLine" class="status-line"></div>
@@ -68,12 +96,12 @@
               <p id="chartNote" class="sub-note"></p>
             </div>
             <div class="button-row">
-              <button id="backFromReportBtn" type="button" class="btn">戻る</button>
+              <button id="backFromReportBtn" class="btn">戻る</button>
             </div>
           </div>
 
           <div class="chart-box">
-            <canvas id="chart" width="900" height="520"></canvas>
+            <canvas id="chart"></canvas>
           </div>
 
           <h3 class="section-title">この園児の一覧</h3>
@@ -102,24 +130,25 @@
               <p class="sub-note">バックアップ、復元、削除を行います。</p>
             </div>
             <div class="button-row">
-              <button id="backFromManageBtn" type="button" class="btn">戻る</button>
+              <button id="backFromManageBtn" class="btn">戻る</button>
             </div>
           </div>
 
           <div class="manage-grid">
-            <button id="backupBtn" type="button" class="btn primary">バックアップ</button>
+            <button id="backupBtn" class="btn primary">バックアップ</button>
 
             <div class="restore-block">
-              <button id="restoreBtn" type="button" class="btn">データ復元</button>
+              <button id="restoreBtn" class="btn">データ復元</button>
               <input id="restoreFile" type="file" accept=".zip" hidden />
             </div>
 
-            <button id="deleteAllBtn" type="button" class="btn danger">データ削除</button>
+            <button id="deleteAllBtn" class="btn danger">データ削除</button>
           </div>
 
           <div id="manageStatus" class="status-line"></div>
         </div>
       </section>
+
     </main>
   </div>
 

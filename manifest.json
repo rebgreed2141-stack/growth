@@ -1,5 +1,5 @@
 {
-  "name": "身長体重管理アプリ",
+  "name": "身長体重管理アプリ Ver.1.0.0",
   "short_name": "身長体重",
   "description": "園児の身長と体重を記録するアプリ",
   "start_url": "./index.html",
