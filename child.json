@@ -295,6 +295,15 @@
       "name": "おおつか　あさひ",
       "gender": "m",
       "birthDate": "2025/7/26"
+    },
+    {
+      "id": "c0031",
+      "classId": "nousagi",
+      "className": "のうさぎ",
+      "no": 5,
+      "name": "おおしま　かなた",
+      "gender": "m",
+      "birthDate": "2021/12/27"
     }
   ]
 }
