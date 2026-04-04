@@ -7,25 +7,6 @@
   <meta name="theme-color" content="#4CAF50" />
   <link rel="manifest" href="./manifest.json" />
   <link rel="stylesheet" href="./styles.css" />
-
-  <style>
-    .app-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .app-title-block {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .app-version {
-      font-size: 0.9rem;
-      color: #6b7c8f;
-      font-weight: 600;
-    }
-  </style>
 </head>
 
 <body>
@@ -38,8 +19,9 @@
         </p>
       </div>
 
-      <!-- ★ 右端固定 -->
-      <div class="app-version">Ver 1.0.0</div>
+      <div class="header-actions">
+        <button id="openVersionBtn" class="header-tab-btn" type="button">バージョン</button>
+      </div>
     </header>
 
     <main class="main-layout">
@@ -146,6 +128,36 @@
           </div>
 
           <div id="manageStatus" class="status-line"></div>
+        </div>
+      </section>
+
+      <section id="versionView" class="panel view">
+        <div class="card">
+          <div class="report-head">
+            <div>
+              <h2>バージョン</h2>
+              <p class="sub-note">更新はボタンを押したときだけ行います。</p>
+            </div>
+            <div class="button-row">
+              <button id="backFromVersionBtn" class="btn">戻る</button>
+            </div>
+          </div>
+
+          <div class="version-grid">
+            <div class="version-row">
+              <div class="version-label">現在のバージョン</div>
+              <div id="currentVersionValue" class="version-value">確認中...</div>
+            </div>
+
+            <div class="version-row">
+              <div class="version-label">最新のバージョン</div>
+              <div id="latestVersionValue" class="version-value">確認中...</div>
+            </div>
+
+            <button id="applyUpdateBtn" class="btn primary" type="button" disabled>更新する</button>
+          </div>
+
+          <div id="versionStatus" class="status-line"></div>
         </div>
       </section>
 

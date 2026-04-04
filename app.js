@@ -30,6 +30,7 @@ const el = (id) => document.getElementById(id);
 const inputView = el("inputView");
 const reportView = el("reportView");
 const manageView = el("manageView");
+const versionView = el("versionView");
 
 const classSelect = el("classSelect");
 const childSelect = el("childSelect");
@@ -39,19 +40,25 @@ const weightInput = el("weightInput");
 const modeView = el("modeView");
 const statusLine = el("statusLine");
 const manageStatus = el("manageStatus");
+const versionStatus = el("versionStatus");
 const headerNote = el("headerNote");
 
 const saveBtn = el("saveBtn");
 const clearBtn = el("clearBtn");
 const openReportBtn = el("openReportBtn");
 const openManageBtn = el("openManageBtn");
+const openVersionBtn = el("openVersionBtn");
 const backFromReportBtn = el("backFromReportBtn");
 const backFromManageBtn = el("backFromManageBtn");
+const backFromVersionBtn = el("backFromVersionBtn");
 
 const backupBtn = el("backupBtn");
 const restoreBtn = el("restoreBtn");
 const restoreFile = el("restoreFile");
 const deleteAllBtn = el("deleteAllBtn");
+const currentVersionValue = el("currentVersionValue");
+const latestVersionValue = el("latestVersionValue");
+const applyUpdateBtn = el("applyUpdateBtn");
 
 const reportTitle = el("reportTitle");
 const chartNote = el("chartNote");
@@ -63,6 +70,11 @@ let CLASSES = [];
 let CHILDREN = [];
 let RECORDS = {};
 let editContext = null;
+let swRegistration = null;
+let waitingWorker = null;
+let currentAppVersion = "";
+let latestAppVersion = "";
+let reloadingForUpdate = false;
 
 function loadStorage() {
   try {
@@ -356,6 +368,7 @@ function showView(name) {
   inputView.classList.toggle("active", name === "input");
   reportView.classList.toggle("active", name === "report");
   manageView.classList.toggle("active", name === "manage");
+  versionView.classList.toggle("active", name === "version");
 }
 
 function getSelectedChild() {
@@ -526,377 +539,327 @@ function renderTable(rows) {
 }
 
 function loadRecordToForm(row) {
-  showView("input");
-  classSelect.value = row.classId || getChildClassId(row.childId);
+  const child = CHILDREN.find((item) => item.id === row.childId);
+  if (!child) return;
+
+  classSelect.value = child.classId;
   refreshChildOptions();
-  childSelect.value = row.childId;
+  childSelect.value = child.id;
   dateInput.value = slashToInputDate(row.date);
-  heightInput.value = row.height;
-  weightInput.value = row.weight;
+  heightInput.value = Number(row.height).toFixed(1);
+  weightInput.value = Number(row.weight).toFixed(1);
   editContext = { childId: row.childId, month: row.month };
   modeView.textContent = `${row.month}月データを編集中`;
-  setStatus(`${row.month}月データを編集中です。`);
+  setStatus(`${child.name}の${row.month}月データを読み込みました。`);
+  showView("input");
 }
 
 function deleteMonthRecord(childId, month) {
-  const childRows = RECORDS[childId];
-  if (!childRows || !childRows[monthKey(month)]) return;
-
   const yes = window.confirm(`${month}月のデータを削除します。よろしいですか？`);
   if (!yes) return;
 
-  delete childRows[monthKey(month)];
-  if (!Object.keys(childRows).length) {
-    delete RECORDS[childId];
+  const bucket = RECORDS[childId];
+  if (bucket && monthKey(month) in bucket) {
+    delete bucket[monthKey(month)];
+    if (!Object.keys(bucket).length) {
+      delete RECORDS[childId];
+    }
+    saveStorage();
   }
-  saveStorage();
 
-  if (editContext && editContext.childId === childId && editContext.month === month) {
-    resetForm();
-  }
-
-  if (reportView.classList.contains("active")) {
+  const selectedChild = getSelectedChild();
+  if (selectedChild && selectedChild.id === childId) {
     renderReport(childId);
   }
-
-  setStatus(`${month}月のデータを削除しました。`);
+  resetForm();
   showToast("削除しました");
 }
 
-function getScaleForClass(classId) {
+function getScaleByClassId(classId) {
   const group = CLASS_GROUPS[classId] || "middle";
   return SCALE_GROUPS[group];
 }
 
-function getMonthLabel(month) {
-  return `${month}月`;
-}
+function monthAgeFromBirthDate(birthDate, measureDate) {
+  const b = normalizeDateString(birthDate);
+  const d = normalizeDateString(measureDate);
+  if (!b || !d) return null;
 
-function parseSlashDateToDate(value) {
-  const normalized = normalizeDateString(value);
-  if (!normalized) return null;
-  const match = normalized.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
-  if (!match) return null;
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-}
+  const [by, bm, bd] = b.split("/").map(Number);
+  const [dy, dm, dd] = d.split("/").map(Number);
 
-function getMonthAgeAtDate(birthDate, targetDate) {
-  const birth = parseSlashDateToDate(birthDate);
-  const target = parseSlashDateToDate(targetDate);
-  if (!birth || !target) return null;
-  if (target < birth) return null;
-
-  let months = (target.getFullYear() - birth.getFullYear()) * 12 + (target.getMonth() - birth.getMonth());
-  if (target.getDate() < birth.getDate()) {
-    months -= 1;
-  }
+  let months = (dy - by) * 12 + (dm - bm);
+  if (dd < bd) months -= 1;
   return months >= 0 ? months : null;
 }
 
-function getAverageForMonthAge(gender, monthAge) {
-  const row = AVERAGE_GROWTH_MAP.get(monthAge);
-  if (!row) return null;
-  if (gender === "m") {
-    return { height: row.boyHeightCm, weight: row.boyWeightKg };
+function getAverageByMonthAge(child, measureDate) {
+  if (!child?.birthDate || !child?.gender) return null;
+
+  const monthAge = monthAgeFromBirthDate(child.birthDate, measureDate);
+  if (monthAge === null) return null;
+
+  const avg = AVERAGE_GROWTH_MAP.get(monthAge);
+  if (!avg) return null;
+
+  if (child.gender === "m") {
+    return {
+      monthAge,
+      height: avg.boyHeightCm,
+      weight: avg.boyWeightKg
+    };
   }
-  if (gender === "f") {
-    return { height: row.girlHeightCm, weight: row.girlWeightKg };
+
+  if (child.gender === "f") {
+    return {
+      monthAge,
+      height: avg.girlHeightCm,
+      weight: avg.girlWeightKg
+    };
   }
+
   return null;
 }
 
-function buildAveragePoints(child, rows, xOf, yOf, scale) {
-  if (!child?.gender || !child?.birthDate) {
-    return { height: [], weight: [] };
+function buildChartPoints(child, rows) {
+  const actual = rows
+    .slice()
+    .sort((a, b) => dateSortValue(a.date).localeCompare(dateSortValue(b.date)))
+    .map((row) => ({
+      label: `${row.month}月`,
+      month: row.month,
+      date: row.date,
+      height: Number(row.height),
+      weight: Number(row.weight),
+      average: getAverageByMonthAge(child, row.date)
+    }));
+
+  const labels = actual.map((item) => item.label);
+  const heightData = actual.map((item) => item.height);
+  const weightData = actual.map((item) => item.weight);
+  const avgHeightData = actual.map((item) => item.average ? item.average.height : null);
+  const avgWeightData = actual.map((item) => item.average ? item.average.weight : null);
+
+  return { labels, actual, heightData, weightData, avgHeightData, avgWeightData };
+}
+
+function drawChartGrid(ctx, chartArea, labels, heightScale, weightScale) {
+  const { left, right, top, bottom } = chartArea;
+  const width = right - left;
+  const height = bottom - top;
+
+  ctx.save();
+  ctx.strokeStyle = "#dbe4ec";
+  ctx.fillStyle = "#5c7287";
+  ctx.lineWidth = 1;
+  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
+  const hStep = 5;
+  for (let value = heightScale.min; value <= heightScale.max; value += hStep) {
+    const y = top + height - ((value - heightScale.min) / (heightScale.max - heightScale.min)) * height;
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(right, y);
+    ctx.stroke();
+    ctx.fillText(`${value}cm`, left - 46, y + 4);
   }
 
-  const ordered = [...rows].sort((a, b) => MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month));
-  const heightPoints = [];
-  const weightPoints = [];
-
-  for (const row of ordered) {
-    const monthAge = getMonthAgeAtDate(child.birthDate, row.date);
-    if (monthAge === null) continue;
-    const avg = getAverageForMonthAge(child.gender, monthAge);
-    if (!avg) continue;
-
-    const x = xOf(row.month);
-    heightPoints.push({ x, y: yOf(avg.height, scale.heightMin, scale.heightMax) });
-    weightPoints.push({ x, y: yOf(avg.weight, scale.weightMin, scale.weightMax) });
+  const wStep = 1;
+  for (let value = weightScale.min; value <= weightScale.max; value += wStep) {
+    const y = top + height - ((value - weightScale.min) / (weightScale.max - weightScale.min)) * height;
+    ctx.fillText(`${value}kg`, right + 8, y + 4);
   }
 
-  return { height: heightPoints, weight: weightPoints };
+  const stepX = labels.length > 1 ? width / (labels.length - 1) : 0;
+  labels.forEach((label, index) => {
+    const x = labels.length > 1 ? left + stepX * index : left + width / 2;
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x, bottom);
+    ctx.stroke();
+    ctx.fillText(label, x - 14, bottom + 20);
+  });
+
+  ctx.strokeStyle = "#8aa0b6";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(left, top);
+  ctx.lineTo(left, bottom);
+  ctx.lineTo(right, bottom);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawLine(ctx, chartArea, values, scale, color, dashed = false) {
+  const { left, right, top, bottom } = chartArea;
+  const width = right - left;
+  const height = bottom - top;
+  const validPoints = values
+    .map((value, index) => ({ value, index }))
+    .filter((item) => typeof item.value === "number" && Number.isFinite(item.value));
+
+  if (!validPoints.length) return;
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 3;
+  ctx.setLineDash(dashed ? [8, 6] : []);
+
+  ctx.beginPath();
+  validPoints.forEach((point, idx) => {
+    const x = values.length > 1 ? left + (width / (values.length - 1)) * point.index : left + width / 2;
+    const y = top + height - ((point.value - scale.min) / (scale.max - scale.min)) * height;
+    if (idx === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  ctx.setLineDash([]);
+  validPoints.forEach((point) => {
+    const x = values.length > 1 ? left + (width / (values.length - 1)) * point.index : left + width / 2;
+    const y = top + height - ((point.value - scale.min) / (scale.max - scale.min)) * height;
+    ctx.beginPath();
+    ctx.arc(x, y, dashed ? 4 : 5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  ctx.restore();
+}
+
+function drawLegend(ctx, items, startX, startY) {
+  ctx.save();
+  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  ctx.fillStyle = "#314a5f";
+  ctx.textBaseline = "middle";
+
+  let x = startX;
+  for (const item of items) {
+    ctx.strokeStyle = item.color;
+    ctx.lineWidth = 3;
+    ctx.setLineDash(item.dashed ? [8, 6] : []);
+    ctx.beginPath();
+    ctx.moveTo(x, startY);
+    ctx.lineTo(x + 24, startY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#314a5f";
+    ctx.fillText(item.label, x + 30, startY);
+    x += ctx.measureText(item.label).width + 70;
+  }
+
+  ctx.restore();
 }
 
 function renderChart(child, rows) {
+  const scale = getScaleByClassId(child?.classId || classSelect.value);
+  const chartData = buildChartPoints(child, rows);
+
+  const width = Math.max(920, chartData.labels.length * 110 + 180);
+  const height = 520;
+  chartCanvas.width = width;
+  chartCanvas.height = height;
+
   const ctx = chartCanvas.getContext("2d");
-  const cssWidth = chartCanvas.clientWidth || 900;
-  const cssHeight = 520;
-  const dpr = window.devicePixelRatio || 1;
-
-  chartCanvas.width = cssWidth * dpr;
-  chartCanvas.height = cssHeight * dpr;
-  chartCanvas.style.height = `${cssHeight}px`;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  const width = cssWidth;
-  const height = cssHeight;
-
   ctx.clearRect(0, 0, width, height);
-
-  const margin = { top: 28, right: 90, bottom: 56, left: 70 };
-  const plotW = width - margin.left - margin.right;
-  const plotH = height - margin.top - margin.bottom;
 
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
 
-  ctx.strokeStyle = "#d9e2ec";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(margin.left, margin.top, plotW, plotH);
-
-  if (!child || !rows.length) {
-    ctx.fillStyle = "#445";
-    ctx.font = "18px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("データがありません", width / 2, height / 2);
+  if (!chartData.labels.length) {
+    ctx.fillStyle = "#60758a";
+    ctx.font = '16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    ctx.fillText("表示するデータがありません。", 32, 60);
     return;
   }
 
-  const scale = getScaleForClass(child.classId);
-  const ordered = [...rows].sort((a, b) => MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month));
-  const xStep = MONTHS.length > 1 ? plotW / (MONTHS.length - 1) : plotW;
-  const monthIndexMap = new Map(MONTHS.map((m, i) => [m, i]));
+  const chartArea = {
+    left: 70,
+    right: width - 70,
+    top: 70,
+    bottom: height - 70
+  };
 
-  function xOf(month) {
-    return margin.left + xStep * monthIndexMap.get(month);
-  }
+  drawChartGrid(
+    ctx,
+    chartArea,
+    chartData.labels,
+    { min: scale.heightMin, max: scale.heightMax },
+    { min: scale.weightMin, max: scale.weightMax }
+  );
 
-  function yOf(value, min, max) {
-    return margin.top + plotH - ((value - min) / (max - min)) * plotH;
-  }
+  drawLine(ctx, chartArea, chartData.avgHeightData, { min: scale.heightMin, max: scale.heightMax }, "#7fb3ff", true);
+  drawLine(ctx, chartArea, chartData.avgWeightData, { min: scale.weightMin, max: scale.weightMax }, "#f5b24e", true);
+  drawLine(ctx, chartArea, chartData.heightData, { min: scale.heightMin, max: scale.heightMax }, "#2563eb", false);
+  drawLine(ctx, chartArea, chartData.weightData, { min: scale.weightMin, max: scale.weightMax }, "#f97316", false);
 
-  for (let i = 0; i <= 6; i += 1) {
-    const y = margin.top + (plotH / 6) * i;
-    ctx.strokeStyle = "#eef3f7";
-    ctx.beginPath();
-    ctx.moveTo(margin.left, y);
-    ctx.lineTo(margin.left + plotW, y);
-    ctx.stroke();
+  ctx.fillStyle = "#17324d";
+  ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  ctx.fillText("身長・体重の推移", 24, 34);
 
-    const hValue = scale.heightMax - ((scale.heightMax - scale.heightMin) / 6) * i;
-    const wValue = scale.weightMax - ((scale.weightMax - scale.weightMin) / 6) * i;
-
-    ctx.fillStyle = "#2f4b5f";
-    ctx.font = "12px sans-serif";
-    ctx.textAlign = "right";
-    ctx.fillText(String(Math.round(hValue)), margin.left - 8, y + 4);
-
-    ctx.textAlign = "left";
-    ctx.fillText(String(Math.round(wValue)), margin.left + plotW + 8, y + 4);
-  }
-
-  MONTHS.forEach((month, i) => {
-    const x = margin.left + xStep * i;
-    ctx.strokeStyle = "#eef3f7";
-    ctx.beginPath();
-    ctx.moveTo(x, margin.top);
-    ctx.lineTo(x, margin.top + plotH);
-    ctx.stroke();
-
-    ctx.fillStyle = "#2f4b5f";
-    ctx.font = "12px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(getMonthLabel(month), x, margin.top + plotH + 24);
-  });
-
-  ctx.fillStyle = "#2f4b5f";
-  ctx.font = "12px sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText("身長(cm)", margin.left, 18);
-  ctx.textAlign = "right";
-  ctx.fillText("体重(kg)", width - 16, 18);
-
-  const heightPoints = ordered.map((row) => ({
-    x: xOf(row.month),
-    y: yOf(row.height, scale.heightMin, scale.heightMax)
-  }));
-
-  const weightPoints = ordered.map((row) => ({
-    x: xOf(row.month),
-    y: yOf(row.weight, scale.weightMin, scale.weightMax)
-  }));
-
-  const averagePoints = buildAveragePoints(child, ordered, xOf, yOf, scale);
-
-  drawLine(ctx, averagePoints.height, "#8bc34a", false, true);
-  drawLine(ctx, averagePoints.weight, "#64b5f6", false, true);
-  drawLine(ctx, heightPoints, "#2e7d32", true, false);
-  drawLine(ctx, weightPoints, "#1565c0", true, false);
-
-  drawLegend(ctx, width - 190, margin.top + 10, averagePoints.height.length > 0 || averagePoints.weight.length > 0);
+  drawLegend(ctx, [
+    { label: "身長", color: "#2563eb", dashed: false },
+    { label: "体重", color: "#f97316", dashed: false },
+    { label: "平均身長", color: "#7fb3ff", dashed: true },
+    { label: "平均体重", color: "#f5b24e", dashed: true }
+  ], 24, 52);
 }
 
-function drawLine(ctx, points, color, drawDots, dashed) {
-  if (!points.length) return;
-
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
-  ctx.setLineDash(dashed ? [8, 6] : []);
-  ctx.beginPath();
-  ctx.moveTo(points[0].x, points[0].y);
-  for (let i = 1; i < points.length; i += 1) {
-    ctx.lineTo(points[i].x, points[i].y);
-  }
-  ctx.stroke();
-  ctx.restore();
-
-  if (!drawDots) return;
-
-  for (const point of points) {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, 4.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
-}
-
-function drawLegend(ctx, x, y, hasAverage) {
-  const boxHeight = hasAverage ? 90 : 54;
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(x, y, 170, boxHeight);
-  ctx.strokeStyle = "#d9e2ec";
-  ctx.strokeRect(x, y, 170, boxHeight);
-
-  drawLegendItem(ctx, x, y + 18, "#2e7d32", "身長", false);
-  drawLegendItem(ctx, x, y + 38, "#1565c0", "体重", false);
-
-  if (hasAverage) {
-    drawLegendItem(ctx, x, y + 58, "#8bc34a", "平均身長", true);
-    drawLegendItem(ctx, x, y + 78, "#64b5f6", "平均体重", true);
-  }
-}
-
-function drawLegendItem(ctx, x, y, color, label, dashed) {
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
-  ctx.setLineDash(dashed ? [8, 6] : []);
-  ctx.beginPath();
-  ctx.moveTo(x + 12, y);
-  ctx.lineTo(x + 42, y);
-  ctx.stroke();
-  ctx.restore();
-
-  if (!dashed) {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(x + 27, y, 4.5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  ctx.fillStyle = "#2f4b5f";
-  ctx.font = "12px sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText(label, x + 52, y + 4);
-}
-
-function toCsvCell(value) {
-  const text = normalizeText(value);
-  if (/[",\n]/.test(text)) {
+function escapeCsvCell(value) {
+  const text = value == null ? "" : String(value);
+  if (/[",\r\n]/.test(text)) {
     return `"${text.replace(/"/g, '""')}"`;
   }
   return text;
 }
 
-function toCsvRow(values) {
-  return values.map(toCsvCell).join(",");
-}
+function makeCsvRowsForClass(classId, fiscalYear) {
+  const classChildren = sortChildren(CHILDREN.filter((item) => item.classId === classId));
+  const header = [
+    "childId",
+    "childName",
+    ...MONTHS.flatMap((month) => [`${month}月_日付`, `${month}月_身長`, `${month}月_体重`])
+  ];
 
-function buildClassCsv(classId) {
-  const childrenInClass = sortChildren(CHILDREN.filter((child) => child.classId === classId));
-  const recordIds = Object.keys(RECORDS).filter((childId) => {
-    const bucket = RECORDS[childId] || {};
-    const sample = Object.values(bucket)[0];
-    return sample && sample.classId === classId;
-  });
+  const rows = [header];
 
-  const allChildMap = new Map();
-  childrenInClass.forEach((child) => {
-    allChildMap.set(child.id, {
-      id: child.id,
-      name: normalizeText(child.name),
-      classId: child.classId,
-      no: child.no
-    });
-  });
-
-  recordIds.forEach((childId) => {
-    if (!allChildMap.has(childId)) {
-      const bucket = RECORDS[childId] || {};
-      const sample = Object.values(bucket)[0];
-      allChildMap.set(childId, {
-        id: childId,
-        name: normalizeText(sample?.childName || childId),
-        classId: sample?.classId || classId,
-        no: 9999
-      });
-    }
-  });
-
-  const allChildren = sortChildren([...allChildMap.values()]);
-  const hasAnyData = allChildren.some((child) => {
-    const bucket = RECORDS[child.id] || {};
-    return Object.keys(bucket).length > 0;
-  });
-
-  if (!hasAnyData) return null;
-
-  const header = ["childId", "childName"];
-  MONTHS.forEach((month) => {
-    header.push(`${month}d`, `${month}h`, `${month}w`);
-  });
-
-  const lines = [toCsvRow(header)];
-
-  allChildren.forEach((child) => {
+  for (const child of classChildren) {
     const bucket = RECORDS[child.id] || {};
     const row = [child.id, child.name];
-    MONTHS.forEach((month) => {
-      const rec = bucket[monthKey(month)];
-      row.push(normalizeDateString(rec?.date || ""), rec?.height ?? "", rec?.weight ?? "");
-    });
-    lines.push(toCsvRow(row));
-  });
 
-  return "\uFEFF" + lines.join("\r\n");
+    for (const month of MONTHS) {
+      const rec = bucket[monthKey(month)];
+      if (rec && getFiscalYearFromDate(rec.date) === fiscalYear) {
+        row.push(rec.date, Number(rec.height).toFixed(1), Number(rec.weight).toFixed(1));
+      } else {
+        row.push("", "", "");
+      }
+    }
+
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+function rowsToCsvText(rows) {
+  return `\uFEFF${rows.map((row) => row.map(escapeCsvCell).join(",")).join("\r\n")}`;
 }
 
 async function backupZip() {
-  const zip = new JSZip();
   const fiscalYear = getActiveFiscalYear();
-  let added = 0;
+  const zip = new JSZip();
 
   for (const cls of CLASSES) {
-    const csv = buildClassCsv(cls.id);
-    if (!csv) continue;
-    zip.file(`growth_${cls.id}_${fiscalYear}.csv`, csv);
-    added += 1;
-  }
-
-  if (!added) {
-    setStatus("バックアップ対象のデータがありません。", manageStatus);
-    showToast("データがありません");
-    return;
+    const rows = makeCsvRowsForClass(cls.id, fiscalYear);
+    const csvText = rowsToCsvText(rows);
+    zip.file(`growth_${cls.id}_${fiscalYear}.csv`, csvText);
   }
 
   const blob = await zip.generateAsync({ type: "blob" });
   downloadBlob(blob, `growth_backup_${fiscalYear}.zip`);
-  setStatus(`${added}件のクラスCSVをZipにしました。`, manageStatus);
+  setStatus(`バックアップを保存しました。`, manageStatus);
   showToast("バックアップしました");
 }
 
@@ -912,42 +875,39 @@ function downloadBlob(blob, fileName) {
 }
 
 function parseCsv(text) {
-  const normalized = String(text || "").replace(/^\uFEFF/, "");
   const rows = [];
   let row = [];
   let cell = "";
-  let i = 0;
   let inQuotes = false;
 
-  while (i < normalized.length) {
-    const ch = normalized[i];
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    const next = text[i + 1];
 
     if (inQuotes) {
-      if (ch === '"') {
-        if (normalized[i + 1] === '"') {
-          cell += '"';
-          i += 2;
-          continue;
-        }
-        inQuotes = false;
+      if (ch === '"' && next === '"') {
+        cell += '"';
         i += 1;
-        continue;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        cell += ch;
       }
-      cell += ch;
-      i += 1;
       continue;
     }
 
     if (ch === '"') {
       inQuotes = true;
-      i += 1;
       continue;
     }
 
     if (ch === ",") {
       row.push(cell);
       cell = "";
-      i += 1;
+      continue;
+    }
+
+    if (ch === "\r") {
       continue;
     }
 
@@ -956,25 +916,18 @@ function parseCsv(text) {
       rows.push(row);
       row = [];
       cell = "";
-      i += 1;
-      continue;
-    }
-
-    if (ch === "\r") {
-      i += 1;
       continue;
     }
 
     cell += ch;
-    i += 1;
   }
 
   row.push(cell);
-  if (row.length > 1 || row[0] !== "") {
-    rows.push(row);
-  }
+  rows.push(row);
 
-  return rows;
+  return rows
+    .map((r) => r.map((c) => String(c || "").replace(/^\uFEFF/, "")))
+    .filter((r) => r.some((c) => c !== ""));
 }
 
 function normalizeRestoredRecord(childId, childName, classId, date, height, weight) {
@@ -1067,6 +1020,126 @@ function deleteAllData() {
   showToast("全データを削除しました");
 }
 
+async function fetchVersionJson(cacheMode = "default") {
+  const response = await fetch("./version.json", {
+    cache: cacheMode,
+    headers: { "cache-control": "no-cache" }
+  });
+  if (!response.ok) throw new Error("version.json を読み込めませんでした。");
+  const payload = await response.json();
+  return normalizeText(payload?.version);
+}
+
+function postMessageToWorker(worker, message) {
+  return new Promise((resolve) => {
+    if (!worker) {
+      resolve(null);
+      return;
+    }
+
+    const channel = new MessageChannel();
+    channel.port1.onmessage = (event) => {
+      resolve(event.data ?? null);
+    };
+
+    try {
+      worker.postMessage(message, [channel.port2]);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function getCurrentVersionFromServiceWorker() {
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const worker = registration.active || navigator.serviceWorker.controller;
+    const response = await postMessageToWorker(worker, { type: "GET_CURRENT_VERSION" });
+    const version = normalizeText(response?.version);
+    if (version) return version;
+  } catch {
+  }
+
+  try {
+    return await fetchVersionJson("reload");
+  } catch {
+    return "";
+  }
+}
+
+function updateVersionButtonState() {
+  const hasNewVersion = !!currentAppVersion && !!latestAppVersion && currentAppVersion !== latestAppVersion;
+  const canUpdate = hasNewVersion && !!waitingWorker;
+  applyUpdateBtn.disabled = !canUpdate;
+  latestVersionValue.textContent = hasNewVersion ? latestAppVersion : "最新です";
+}
+
+function renderVersionInfo() {
+  currentVersionValue.textContent = currentAppVersion || "確認できません";
+  updateVersionButtonState();
+}
+
+async function refreshVersionInfo() {
+  setStatus("", versionStatus);
+
+  try {
+    currentAppVersion = await getCurrentVersionFromServiceWorker();
+  } catch {
+    currentAppVersion = "";
+  }
+
+  try {
+    latestAppVersion = await fetchVersionJson("no-store");
+  } catch {
+    latestAppVersion = currentAppVersion;
+  }
+
+  renderVersionInfo();
+}
+
+function setWaitingWorker(worker) {
+  waitingWorker = worker || null;
+  updateVersionButtonState();
+}
+
+function watchInstallingWorker(worker) {
+  if (!worker) return;
+
+  worker.addEventListener("statechange", () => {
+    if (worker.state === "installed" && swRegistration?.waiting) {
+      setWaitingWorker(swRegistration.waiting);
+      refreshVersionInfo();
+    }
+
+    if (worker.state === "activated") {
+      setWaitingWorker(null);
+    }
+  });
+}
+
+function wireServiceWorkerRegistration(registration) {
+  swRegistration = registration || null;
+  setWaitingWorker(swRegistration?.waiting || null);
+
+  if (!swRegistration) return;
+
+  if (swRegistration.installing) {
+    watchInstallingWorker(swRegistration.installing);
+  }
+
+  swRegistration.addEventListener("updatefound", () => {
+    watchInstallingWorker(swRegistration.installing);
+  });
+}
+
+async function applyWaitingUpdate() {
+  if (!waitingWorker) return;
+
+  reloadingForUpdate = true;
+  waitingWorker.postMessage({ type: "SKIP_WAITING" });
+  setStatus("更新しています...", versionStatus);
+}
+
 function bindEvents() {
   classSelect.addEventListener("change", () => {
     refreshChildOptions();
@@ -1080,10 +1153,17 @@ function bindEvents() {
     showView("manage");
     setStatus("");
   });
+  openVersionBtn.addEventListener("click", async () => {
+    showView("version");
+    await refreshVersionInfo();
+  });
   backFromReportBtn.addEventListener("click", () => {
     showView("input");
   });
   backFromManageBtn.addEventListener("click", () => {
+    showView("input");
+  });
+  backFromVersionBtn.addEventListener("click", () => {
     showView("input");
   });
 
@@ -1114,6 +1194,8 @@ function bindEvents() {
 
   deleteAllBtn.addEventListener("click", deleteAllData);
 
+  applyUpdateBtn.addEventListener("click", applyWaitingUpdate);
+
   childSelect.addEventListener("change", () => {
     if (reportView.classList.contains("active")) {
       const child = getSelectedChild();
@@ -1130,10 +1212,23 @@ function bindEvents() {
 }
 
 async function registerServiceWorker() {
-  if (!("serviceWorker" in navigator)) return;
+  if (!("serviceWorker" in navigator)) return null;
   try {
-    await navigator.serviceWorker.register("./sw.js");
+    const registration = await navigator.serviceWorker.register("./sw.js");
+    wireServiceWorkerRegistration(registration);
+
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!reloadingForUpdate) return;
+      reloadingForUpdate = false;
+      window.location.reload();
+    });
+
+    const readyRegistration = await navigator.serviceWorker.ready;
+    wireServiceWorkerRegistration(readyRegistration);
+
+    return readyRegistration;
   } catch {
+    return null;
   }
 }
 
@@ -1159,6 +1254,7 @@ async function init() {
     resetForm();
     headerNote.textContent = "入力すると同じ月の古いデータは自動で置き換わります。";
     await registerServiceWorker();
+    await refreshVersionInfo();
   } catch (error) {
     setStatus("初期化に失敗しました。child.json または average_growth.json を確認してください。");
   }

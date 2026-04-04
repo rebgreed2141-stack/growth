@@ -1,4 +1,4 @@
-const CACHE_NAME = "growth-v6";
+const CACHE_NAME = "growth-v7";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -7,6 +7,7 @@ const CORE_ASSETS = [
   "./manifest.json",
   "./child.json",
   "./average_growth.json",
+  "./version.json",
   "./jszip.min.js",
   "./icon-192.png",
   "./icon-512.png"
@@ -17,7 +18,6 @@ self.addEventListener("install", (event) => {
     (async () => {
       const cache = await caches.open(CACHE_NAME);
       await cache.addAll(CORE_ASSETS);
-      await self.skipWaiting();
     })()
   );
 });
@@ -34,6 +34,37 @@ self.addEventListener("activate", (event) => {
       await self.clients.claim();
     })()
   );
+});
+
+self.addEventListener("message", (event) => {
+  const message = event.data || {};
+
+  if (message.type === "SKIP_WAITING") {
+    self.skipWaiting();
+    return;
+  }
+
+  if (message.type === "GET_CURRENT_VERSION") {
+    event.waitUntil(
+      (async () => {
+        let version = "";
+
+        try {
+          const cache = await caches.open(CACHE_NAME);
+          const response = await cache.match("./version.json");
+          if (response) {
+            const payload = await response.json();
+            version = String(payload?.version || "").trim();
+          }
+        } catch {
+        }
+
+        if (event.ports && event.ports[0]) {
+          event.ports[0].postMessage({ version });
+        }
+      })()
+    );
+  }
 });
 
 self.addEventListener("fetch", (event) => {
@@ -74,6 +105,9 @@ self.addEventListener("fetch", (event) => {
         }
         if (req.url.endsWith("/average_growth.json") || req.url.endsWith("average_growth.json")) {
           return caches.match("./average_growth.json");
+        }
+        if (req.url.endsWith("/version.json") || req.url.endsWith("version.json")) {
+          return caches.match("./version.json");
         }
         if (req.url.endsWith("/jszip.min.js") || req.url.endsWith("jszip.min.js")) {
           return caches.match("./jszip.min.js");
