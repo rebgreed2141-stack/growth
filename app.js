@@ -74,7 +74,6 @@ let swRegistration = null;
 let waitingWorker = null;
 let currentAppVersion = "";
 let latestAppVersion = "";
-let reloadingForUpdate = false;
 
 function loadStorage() {
   try {
@@ -1069,7 +1068,7 @@ async function getCurrentVersionFromServiceWorker() {
 
 function updateVersionButtonState() {
   const hasNewVersion = !!currentAppVersion && !!latestAppVersion && currentAppVersion !== latestAppVersion;
-  const canUpdate = hasNewVersion && !!waitingWorker;
+  const canUpdate = !!waitingWorker || hasNewVersion;
   applyUpdateBtn.disabled = !canUpdate;
   latestVersionValue.textContent = hasNewVersion ? latestAppVersion : "最新です";
 }
@@ -1108,7 +1107,6 @@ function watchInstallingWorker(worker) {
   worker.addEventListener("statechange", () => {
     if (worker.state === "installed" && swRegistration?.waiting) {
       setWaitingWorker(swRegistration.waiting);
-      refreshVersionInfo();
     }
 
     if (worker.state === "activated") {
@@ -1132,12 +1130,109 @@ function wireServiceWorkerRegistration(registration) {
   });
 }
 
-async function applyWaitingUpdate() {
-  if (!waitingWorker) return;
+function waitForInstalledWorker(registration) {
+  return new Promise((resolve) => {
+    let timer = null;
 
-  reloadingForUpdate = true;
-  waitingWorker.postMessage({ type: "SKIP_WAITING" });
+    const finish = (worker) => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      resolve(worker || null);
+    };
+
+    const watch = (worker) => {
+      if (!worker) return false;
+      if (worker.state === "installed") {
+        finish(registration.waiting || worker);
+        return true;
+      }
+      worker.addEventListener("statechange", () => {
+        if (worker.state === "installed") {
+          finish(registration.waiting || worker);
+        }
+      }, { once: true });
+      return true;
+    };
+
+    if (registration.waiting) {
+      finish(registration.waiting);
+      return;
+    }
+
+    if (watch(registration.installing)) return;
+
+    const onUpdateFound = () => {
+      registration.removeEventListener("updatefound", onUpdateFound);
+      if (!watch(registration.installing)) finish(null);
+    };
+
+    registration.addEventListener("updatefound", onUpdateFound, { once: true });
+    timer = setTimeout(() => {
+      registration.removeEventListener("updatefound", onUpdateFound);
+      finish(registration.waiting || null);
+    }, 8000);
+  });
+}
+
+function activateWorkerAndReload(worker) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resolve();
+    };
+
+    const timer = setTimeout(finish, 4000);
+    const onControllerChange = () => {
+      clearTimeout(timer);
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+      finish();
+    };
+
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+
+    try {
+      worker.postMessage({ type: "SKIP_WAITING" });
+    } catch {
+      clearTimeout(timer);
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+      finish();
+    }
+  }).then(() => {
+    window.location.reload();
+  });
+}
+
+async function applyWaitingUpdate() {
+  if (!swRegistration) return;
+
+  applyUpdateBtn.disabled = true;
   setStatus("更新しています...", versionStatus);
+
+  try {
+    let targetWorker = swRegistration.waiting || waitingWorker || null;
+
+    if (!targetWorker) {
+      const installedWorkerPromise = waitForInstalledWorker(swRegistration);
+      await swRegistration.update();
+      targetWorker = await installedWorkerPromise;
+    }
+
+    if (targetWorker) {
+      setWaitingWorker(swRegistration.waiting || targetWorker);
+      await activateWorkerAndReload(swRegistration.waiting || targetWorker);
+      return;
+    }
+
+    await refreshVersionInfo();
+    setStatus("最新です。", versionStatus);
+  } catch {
+    await refreshVersionInfo();
+    setStatus("更新に失敗しました。", versionStatus);
+  }
 }
 
 function bindEvents() {
@@ -1214,19 +1309,12 @@ function bindEvents() {
 async function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return null;
   try {
-    const registration = await navigator.serviceWorker.register("./sw.js");
+    let registration = await navigator.serviceWorker.getRegistration();
+    if (!registration) {
+      registration = await navigator.serviceWorker.register("./sw.js");
+    }
     wireServiceWorkerRegistration(registration);
-
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (!reloadingForUpdate) return;
-      reloadingForUpdate = false;
-      window.location.reload();
-    });
-
-    const readyRegistration = await navigator.serviceWorker.ready;
-    wireServiceWorkerRegistration(readyRegistration);
-
-    return readyRegistration;
+    return registration;
   } catch {
     return null;
   }
@@ -1254,7 +1342,6 @@ async function init() {
     resetForm();
     headerNote.textContent = "入力すると同じ月の古いデータは自動で置き換わります。";
     await registerServiceWorker();
-    await refreshVersionInfo();
   } catch (error) {
     setStatus("初期化に失敗しました。child.json または average_growth.json を確認してください。");
   }
