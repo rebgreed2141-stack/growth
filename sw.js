@@ -1,7 +1,4 @@
-const APP_VERSION = "1.1.0";
-const CACHE_NAME = `growth-cache-${APP_VERSION}`;
-const META_CACHE_NAME = "growth-meta";
-const ACTIVE_CACHE_KEY = "./__active_cache_name__";
+const CACHE_NAME = "growth-v7";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -16,79 +13,11 @@ const CORE_ASSETS = [
   "./icon-512.png"
 ];
 
-function normalizePathname(url) {
-  const pathname = new URL(url, self.location.origin).pathname;
-  return pathname.replace(/\/$/, "") || "/";
-}
-
-function isLatestVersionRequest(url) {
-  return normalizePathname(url.href).endsWith("/version.json") && url.searchParams.get("mode") === "latest";
-}
-
-function getCoreCacheKey(requestUrl) {
-  const pathname = normalizePathname(requestUrl.href);
-
-  if (pathname === "/" || pathname.endsWith("/index.html")) return "./index.html";
-  if (pathname.endsWith("/app.js")) return "./app.js";
-  if (pathname.endsWith("/styles.css")) return "./styles.css";
-  if (pathname.endsWith("/manifest.json")) return "./manifest.json";
-  if (pathname.endsWith("/child.json")) return "./child.json";
-  if (pathname.endsWith("/average_growth.json")) return "./average_growth.json";
-  if (pathname.endsWith("/version.json")) return "./version.json";
-  if (pathname.endsWith("/jszip.min.js")) return "./jszip.min.js";
-  if (pathname.endsWith("/icon-192.png")) return "./icon-192.png";
-  if (pathname.endsWith("/icon-512.png")) return "./icon-512.png";
-
-  return null;
-}
-
-async function readActiveCacheName() {
-  try {
-    const metaCache = await caches.open(META_CACHE_NAME);
-    const response = await metaCache.match(ACTIVE_CACHE_KEY);
-    if (!response) return "";
-    return String(await response.text()).trim();
-  } catch {
-    return "";
-  }
-}
-
-async function writeActiveCacheName(cacheName) {
-  const metaCache = await caches.open(META_CACHE_NAME);
-  await metaCache.put(ACTIVE_CACHE_KEY, new Response(String(cacheName || ""), {
-    headers: { "content-type": "text/plain;charset=utf-8" }
-  }));
-}
-
-async function getServingCacheName() {
-  return (await readActiveCacheName()) || CACHE_NAME;
-}
-
-async function cacheCoreAssets(targetCacheName = CACHE_NAME) {
-  const cache = await caches.open(targetCacheName);
-  await cache.addAll(CORE_ASSETS);
-}
-
-async function getCachedCurrentVersion() {
-  try {
-    const cache = await caches.open(await getServingCacheName());
-    const response = await cache.match("./version.json");
-    if (!response) return "";
-    const payload = await response.json();
-    return String(payload?.version || "").trim();
-  } catch {
-    return "";
-  }
-}
-
 self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
-      await cacheCoreAssets(CACHE_NAME);
-      const activeCacheName = await readActiveCacheName();
-      if (!activeCacheName) {
-        await writeActiveCacheName(CACHE_NAME);
-      }
+      const cache = await caches.open(CACHE_NAME);
+      await cache.addAll(CORE_ASSETS);
     })()
   );
 });
@@ -96,12 +25,10 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      const approvedCacheName = await getServingCacheName();
-      const keep = new Set([META_CACHE_NAME, approvedCacheName, CACHE_NAME]);
       const keys = await caches.keys();
       await Promise.all(
         keys
-          .filter((key) => !keep.has(key))
+          .filter((key) => key !== CACHE_NAME)
           .map((key) => caches.delete(key))
       );
       await self.clients.claim();
@@ -113,43 +40,27 @@ self.addEventListener("message", (event) => {
   const message = event.data || {};
 
   if (message.type === "SKIP_WAITING") {
-    event.waitUntil(
-      (async () => {
-        await writeActiveCacheName(CACHE_NAME);
-        self.skipWaiting();
-      })()
-    );
+    // removed auto skipWaiting
     return;
   }
 
   if (message.type === "GET_CURRENT_VERSION") {
     event.waitUntil(
       (async () => {
-        const version = await getCachedCurrentVersion();
-        if (event.ports && event.ports[0]) {
-          event.ports[0].postMessage({ version });
-        }
-      })()
-    );
-    return;
-  }
-
-  if (message.type === "APPLY_APP_UPDATE") {
-    event.waitUntil(
-      (async () => {
-        let ok = false;
+        let version = "";
 
         try {
-          const activeCacheName = await getServingCacheName();
-          await cacheCoreAssets(activeCacheName);
-          await writeActiveCacheName(activeCacheName);
-          ok = true;
+          const cache = await caches.open(CACHE_NAME);
+          const response = await cache.match("./version.json");
+          if (response) {
+            const payload = await response.json();
+            version = String(payload?.version || "").trim();
+          }
         } catch {
-          ok = false;
         }
 
         if (event.ports && event.ports[0]) {
-          event.ports[0].postMessage({ ok });
+          event.ports[0].postMessage({ version });
         }
       })()
     );
@@ -161,24 +72,52 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
 
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;
-
-  if (isLatestVersionRequest(url)) {
-    event.respondWith(
-      fetch(req, { cache: "no-store" }).catch(() => new Response("", { status: 503, statusText: "Offline" }))
-    );
-    return;
-  }
-
-  const cacheKey = req.mode === "navigate" ? "./index.html" : getCoreCacheKey(url);
-  if (!cacheKey) return;
 
   event.respondWith(
     (async () => {
-      const cache = await caches.open(await getServingCacheName());
-      const cached = await cache.match(cacheKey);
-      if (cached) return cached;
-      return fetch(req);
+      try {
+        const networkRes = await fetch(req);
+
+        if (url.origin === location.origin && networkRes && networkRes.status === 200) {
+          const cache = await caches.open(CACHE_NAME);
+          cache.put(req, networkRes.clone());
+        }
+
+        return networkRes;
+      } catch (error) {
+        const cached = await caches.match(req);
+        if (cached) return cached;
+
+        if (req.mode === "navigate") {
+          return caches.match("./index.html");
+        }
+        if (req.url.endsWith("/app.js") || req.url.endsWith("app.js")) {
+          return caches.match("./app.js");
+        }
+        if (req.url.endsWith("/styles.css") || req.url.endsWith("styles.css")) {
+          return caches.match("./styles.css");
+        }
+        if (req.url.endsWith("/manifest.json") || req.url.endsWith("manifest.json")) {
+          return caches.match("./manifest.json");
+        }
+        if (req.url.endsWith("/child.json") || req.url.endsWith("child.json")) {
+          return caches.match("./child.json");
+        }
+        if (req.url.endsWith("/average_growth.json") || req.url.endsWith("average_growth.json")) {
+          return caches.match("./average_growth.json");
+        }
+        if (req.url.endsWith("/version.json") || req.url.endsWith("version.json")) {
+          return caches.match("./version.json");
+        }
+        if (req.url.endsWith("/jszip.min.js") || req.url.endsWith("jszip.min.js")) {
+          return caches.match("./jszip.min.js");
+        }
+        if (req.destination === "image") {
+          return caches.match("./icon-192.png");
+        }
+
+        return new Response("", { status: 503, statusText: "Offline fallback" });
+      }
     })()
   );
 });

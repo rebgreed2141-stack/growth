@@ -1,7 +1,4 @@
 const STORAGE_KEY = "growth_records_v4";
-const APP_VERSION_STORAGE_KEY = "growth_current_app_version";
-const UPDATE_APPROVED_FLAG = "growth_update_approved";
-const BUNDLED_APP_VERSION = "1.1.0";
 const DEFAULT_CLASSES = [
   { id: "momiji", name: "もみじ" },
   { id: "donguri", name: "どんぐり" },
@@ -1022,51 +1019,14 @@ function deleteAllData() {
   showToast("全データを削除しました");
 }
 
-async function fetchVersionJson(options = {}) {
-  const { latest = false } = options;
-  const url = latest ? `./version.json?mode=latest&t=${Date.now()}` : "./version.json";
-  const response = await fetch(url, {
-    cache: latest ? "no-store" : "default",
-    headers: latest ? { "cache-control": "no-cache" } : undefined
+async function fetchVersionJson(cacheMode = "default") {
+  const response = await fetch("./version.json", {
+    cache: cacheMode,
+    headers: { "cache-control": "no-cache" }
   });
   if (!response.ok) throw new Error("version.json を読み込めませんでした。");
   const payload = await response.json();
   return normalizeText(payload?.version);
-}
-
-function getStoredCurrentVersion() {
-  return normalizeText(localStorage.getItem(APP_VERSION_STORAGE_KEY));
-}
-
-function setStoredCurrentVersion(version) {
-  const normalized = normalizeText(version);
-  if (!normalized) return;
-  localStorage.setItem(APP_VERSION_STORAGE_KEY, normalized);
-}
-
-function hasApprovedUpdateFlag() {
-  return sessionStorage.getItem(UPDATE_APPROVED_FLAG) === "1";
-}
-
-function setApprovedUpdateFlag() {
-  sessionStorage.setItem(UPDATE_APPROVED_FLAG, "1");
-}
-
-function clearApprovedUpdateFlag() {
-  sessionStorage.removeItem(UPDATE_APPROVED_FLAG);
-}
-
-function compareVersions(a, b) {
-  const left = normalizeText(a).split(".").map((part) => Number(part) || 0);
-  const right = normalizeText(b).split(".").map((part) => Number(part) || 0);
-  const length = Math.max(left.length, right.length);
-
-  for (let i = 0; i < length; i += 1) {
-    const diff = (left[i] || 0) - (right[i] || 0);
-    if (diff !== 0) return diff;
-  }
-
-  return 0;
 }
 
 function postMessageToWorker(worker, message) {
@@ -1089,7 +1049,7 @@ function postMessageToWorker(worker, message) {
   });
 }
 
-async function getInstalledVersion() {
+async function getCurrentVersionFromServiceWorker() {
   try {
     const registration = await navigator.serviceWorker.ready;
     const worker = registration.active || navigator.serviceWorker.controller;
@@ -1100,47 +1060,21 @@ async function getInstalledVersion() {
   }
 
   try {
-    return await fetchVersionJson();
+    return await fetchVersionJson("reload");
   } catch {
-    return BUNDLED_APP_VERSION;
+    return "";
   }
-}
-
-async function syncStoredCurrentVersion() {
-  const storedVersion = getStoredCurrentVersion();
-
-  if (storedVersion && !hasApprovedUpdateFlag()) {
-    currentAppVersion = storedVersion;
-    return currentAppVersion;
-  }
-
-  const installedVersion = await getInstalledVersion();
-
-  if (!storedVersion && installedVersion) {
-    setStoredCurrentVersion(installedVersion);
-    currentAppVersion = installedVersion;
-    return currentAppVersion;
-  }
-
-  if (hasApprovedUpdateFlag() && installedVersion) {
-    setStoredCurrentVersion(installedVersion);
-    clearApprovedUpdateFlag();
-    currentAppVersion = installedVersion;
-    return currentAppVersion;
-  }
-
-  currentAppVersion = storedVersion || installedVersion || BUNDLED_APP_VERSION;
-  return currentAppVersion;
 }
 
 function updateVersionButtonState() {
-  const hasNewVersion = compareVersions(latestAppVersion, currentAppVersion) > 0;
-  applyUpdateBtn.disabled = !(hasNewVersion && !!swRegistration);
+  const hasNewVersion = !!currentAppVersion && !!latestAppVersion && currentAppVersion !== latestAppVersion;
+  const canUpdate = !!waitingWorker || hasNewVersion;
+  applyUpdateBtn.disabled = !canUpdate;
+  latestVersionValue.textContent = hasNewVersion ? latestAppVersion : "最新です";
 }
 
 function renderVersionInfo() {
   currentVersionValue.textContent = currentAppVersion || "確認できません";
-  latestVersionValue.textContent = latestAppVersion || "確認できません";
   updateVersionButtonState();
 }
 
@@ -1148,15 +1082,15 @@ async function refreshVersionInfo() {
   setStatus("", versionStatus);
 
   try {
-    await syncStoredCurrentVersion();
+    currentAppVersion = await getCurrentVersionFromServiceWorker();
   } catch {
-    currentAppVersion = getStoredCurrentVersion() || BUNDLED_APP_VERSION;
+    currentAppVersion = "";
   }
 
   try {
-    latestAppVersion = await fetchVersionJson({ latest: true });
+    latestAppVersion = await fetchVersionJson("no-store");
   } catch {
-    latestAppVersion = "";
+    latestAppVersion = currentAppVersion;
   }
 
   renderVersionInfo();
@@ -1258,10 +1192,7 @@ function activateWorkerAndReload(worker) {
       finish();
     };
 
-    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
-
-    try {
-      worker.postMessage({ type: "SKIP_WAITING" });
+    // removed controllerchange auto reload
     } catch {
       clearTimeout(timer);
       navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
@@ -1272,18 +1203,6 @@ function activateWorkerAndReload(worker) {
   });
 }
 
-async function updateActiveCacheAndReload() {
-  const worker = swRegistration?.active || navigator.serviceWorker.controller;
-  if (!worker) return false;
-
-  const response = await postMessageToWorker(worker, { type: "APPLY_APP_UPDATE" });
-  if (!response?.ok) return false;
-
-  setApprovedUpdateFlag();
-  window.location.reload();
-  return true;
-}
-
 async function applyWaitingUpdate() {
   if (!swRegistration) return;
 
@@ -1291,23 +1210,17 @@ async function applyWaitingUpdate() {
   setStatus("更新しています...", versionStatus);
 
   try {
-    const installedWorkerPromise = waitForInstalledWorker(swRegistration);
-    await swRegistration.update();
-
     let targetWorker = swRegistration.waiting || waitingWorker || null;
+
     if (!targetWorker) {
+      const installedWorkerPromise = waitForInstalledWorker(swRegistration);
+      await swRegistration.update();
       targetWorker = await installedWorkerPromise;
     }
 
     if (targetWorker) {
       setWaitingWorker(swRegistration.waiting || targetWorker);
-      setApprovedUpdateFlag();
       await activateWorkerAndReload(swRegistration.waiting || targetWorker);
-      return;
-    }
-
-    const updated = await updateActiveCacheAndReload();
-    if (updated) {
       return;
     }
 
@@ -1432,3 +1345,21 @@ async function init() {
 }
 
 init();
+
+// manual update button
+document.addEventListener("DOMContentLoaded", async () => {
+  const btn = document.querySelector("#updateBtn");
+  if (!btn) return;
+
+  btn.addEventListener("click", async () => {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) return;
+
+    await reg.update();
+
+    if (reg.waiting) {
+      reg.waiting.postMessage("SKIP_WAITING");
+      setTimeout(() => location.reload(), 500);
+    }
+  });
+});
