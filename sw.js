@@ -40,7 +40,7 @@ self.addEventListener("message", (event) => {
   const message = event.data || {};
 
   if (message.type === "SKIP_WAITING") {
-    // removed auto skipWaiting
+    self.skipWaiting();
     return;
   }
 
@@ -72,50 +72,37 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
 
   const url = new URL(req.url);
+  const isSameOrigin = url.origin === self.location.origin;
+  const isVersionJson = url.pathname.endsWith("/version.json") || url.pathname.endsWith("version.json");
+
+  if (!isSameOrigin) return;
 
   event.respondWith(
     (async () => {
+      if (isVersionJson) {
+        try {
+          return await fetch(req, { cache: "no-store" });
+        } catch {
+          const cached = await caches.match(req, { ignoreSearch: true });
+          return cached || new Response("", { status: 503, statusText: "Offline fallback" });
+        }
+      }
+
+      const cached = await caches.match(req, { ignoreSearch: true });
+      if (cached) return cached;
+
       try {
         const networkRes = await fetch(req);
-
-        if (url.origin === location.origin && networkRes && networkRes.status === 200) {
+        if (networkRes && networkRes.status === 200) {
           const cache = await caches.open(CACHE_NAME);
           cache.put(req, networkRes.clone());
         }
-
         return networkRes;
-      } catch (error) {
-        const cached = await caches.match(req);
-        if (cached) return cached;
-
+      } catch {
         if (req.mode === "navigate") {
-          return caches.match("./index.html");
+          const fallback = await caches.match("./index.html");
+          if (fallback) return fallback;
         }
-        if (req.url.endsWith("/app.js") || req.url.endsWith("app.js")) {
-          return caches.match("./app.js");
-        }
-        if (req.url.endsWith("/styles.css") || req.url.endsWith("styles.css")) {
-          return caches.match("./styles.css");
-        }
-        if (req.url.endsWith("/manifest.json") || req.url.endsWith("manifest.json")) {
-          return caches.match("./manifest.json");
-        }
-        if (req.url.endsWith("/child.json") || req.url.endsWith("child.json")) {
-          return caches.match("./child.json");
-        }
-        if (req.url.endsWith("/average_growth.json") || req.url.endsWith("average_growth.json")) {
-          return caches.match("./average_growth.json");
-        }
-        if (req.url.endsWith("/version.json") || req.url.endsWith("version.json")) {
-          return caches.match("./version.json");
-        }
-        if (req.url.endsWith("/jszip.min.js") || req.url.endsWith("jszip.min.js")) {
-          return caches.match("./jszip.min.js");
-        }
-        if (req.destination === "image") {
-          return caches.match("./icon-192.png");
-        }
-
         return new Response("", { status: 503, statusText: "Offline fallback" });
       }
     })()

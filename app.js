@@ -1,4 +1,5 @@
 const STORAGE_KEY = "growth_records_v4";
+const VERSION_STORAGE_KEY = "growth_installed_version";
 const DEFAULT_CLASSES = [
   { id: "momiji", name: "もみじ" },
   { id: "donguri", name: "どんぐり" },
@@ -1050,24 +1051,40 @@ function postMessageToWorker(worker, message) {
 }
 
 async function getCurrentVersionFromServiceWorker() {
+  const saved = normalizeText(localStorage.getItem(VERSION_STORAGE_KEY));
+  if (saved) return saved;
+
   try {
-    const registration = await navigator.serviceWorker.ready;
-    const worker = registration.active || navigator.serviceWorker.controller;
-    const response = await postMessageToWorker(worker, { type: "GET_CURRENT_VERSION" });
-    const version = normalizeText(response?.version);
-    if (version) return version;
+    const response = await caches.match("./version.json");
+    if (response) {
+      const payload = await response.json();
+      const installed = normalizeText(payload?.version);
+      if (installed) {
+        localStorage.setItem(VERSION_STORAGE_KEY, installed);
+        return installed;
+      }
+    }
   } catch {
   }
 
-  try {
-    return await fetchVersionJson("reload");
-  } catch {
-    return "";
+  return "";
+}
+
+function compareVersions(a, b) {
+  const pa = String(a || "").split(".").map((v) => Number(v) || 0);
+  const pb = String(b || "").split(".").map((v) => Number(v) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i += 1) {
+    const av = pa[i] || 0;
+    const bv = pb[i] || 0;
+    if (av > bv) return 1;
+    if (av < bv) return -1;
   }
+  return 0;
 }
 
 function updateVersionButtonState() {
-  const hasNewVersion = !!currentAppVersion && !!latestAppVersion && currentAppVersion !== latestAppVersion;
+  const hasNewVersion = !!currentAppVersion && !!latestAppVersion && compareVersions(latestAppVersion, currentAppVersion) > 0;
   const canUpdate = !!waitingWorker || hasNewVersion;
   applyUpdateBtn.disabled = !canUpdate;
   latestVersionValue.textContent = hasNewVersion ? latestAppVersion : "最新です";
@@ -1192,13 +1209,20 @@ function activateWorkerAndReload(worker) {
       finish();
     };
 
-    // removed controllerchange auto reload
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+
+    try {
+      worker.postMessage({ type: "SKIP_WAITING" });
     } catch {
       clearTimeout(timer);
       navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
       finish();
     }
   }).then(() => {
+    if (latestAppVersion) {
+      localStorage.setItem(VERSION_STORAGE_KEY, latestAppVersion);
+      currentAppVersion = latestAppVersion;
+    }
     window.location.reload();
   });
 }
@@ -1345,21 +1369,3 @@ async function init() {
 }
 
 init();
-
-// manual update button
-document.addEventListener("DOMContentLoaded", async () => {
-  const btn = document.querySelector("#updateBtn");
-  if (!btn) return;
-
-  btn.addEventListener("click", async () => {
-    const reg = await navigator.serviceWorker.getRegistration();
-    if (!reg) return;
-
-    await reg.update();
-
-    if (reg.waiting) {
-      reg.waiting.postMessage("SKIP_WAITING");
-      setTimeout(() => location.reload(), 500);
-    }
-  });
-});
