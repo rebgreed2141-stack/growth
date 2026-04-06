@@ -72,37 +72,67 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
 
   const url = new URL(req.url);
-  const isSameOrigin = url.origin === self.location.origin;
-  const isVersionJson = url.pathname.endsWith("/version.json") || url.pathname.endsWith("version.json");
-
-  if (!isSameOrigin) return;
+  const isSameOrigin = url.origin === location.origin;
+  const isVersionRequest = url.pathname.endsWith("/version.json") || url.pathname.endsWith("version.json");
 
   event.respondWith(
     (async () => {
-      if (isVersionJson) {
+      if (isVersionRequest) {
         try {
           return await fetch(req, { cache: "no-store" });
         } catch {
-          const cached = await caches.match(req, { ignoreSearch: true });
-          return cached || new Response("", { status: 503, statusText: "Offline fallback" });
+          const cachedVersion = await caches.match("./version.json");
+          if (cachedVersion) return cachedVersion;
+          return new Response('{"version":""}', {
+            status: 200,
+            headers: { "Content-Type": "application/json; charset=utf-8" }
+          });
         }
       }
 
-      const cached = await caches.match(req, { ignoreSearch: true });
-      if (cached) return cached;
+      if (isSameOrigin) {
+        const cached = await caches.match(req);
+        if (cached) return cached;
+
+        try {
+          const networkRes = await fetch(req);
+          if (networkRes && networkRes.status === 200) {
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(req, networkRes.clone());
+          }
+          return networkRes;
+        } catch {
+          if (req.mode === "navigate") {
+            return caches.match("./index.html");
+          }
+          if (req.url.endsWith("/app.js") || req.url.endsWith("app.js")) {
+            return caches.match("./app.js");
+          }
+          if (req.url.endsWith("/styles.css") || req.url.endsWith("styles.css")) {
+            return caches.match("./styles.css");
+          }
+          if (req.url.endsWith("/manifest.json") || req.url.endsWith("manifest.json")) {
+            return caches.match("./manifest.json");
+          }
+          if (req.url.endsWith("/child.json") || req.url.endsWith("child.json")) {
+            return caches.match("./child.json");
+          }
+          if (req.url.endsWith("/average_growth.json") || req.url.endsWith("average_growth.json")) {
+            return caches.match("./average_growth.json");
+          }
+          if (req.url.endsWith("/jszip.min.js") || req.url.endsWith("jszip.min.js")) {
+            return caches.match("./jszip.min.js");
+          }
+          if (req.destination === "image") {
+            return caches.match(req) || caches.match("./icon-192.png");
+          }
+          return new Response("", { status: 503, statusText: "Offline fallback" });
+        }
+      }
 
       try {
-        const networkRes = await fetch(req);
-        if (networkRes && networkRes.status === 200) {
-          const cache = await caches.open(CACHE_NAME);
-          cache.put(req, networkRes.clone());
-        }
-        return networkRes;
+        return await fetch(req);
       } catch {
-        if (req.mode === "navigate") {
-          const fallback = await caches.match("./index.html");
-          if (fallback) return fallback;
-        }
         return new Response("", { status: 503, statusText: "Offline fallback" });
       }
     })()
