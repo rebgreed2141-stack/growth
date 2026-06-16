@@ -1,10 +1,11 @@
-const CACHE_NAME = "growth-v6";
+const CACHE_NAME = "growth-cache";
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./app.js",
   "./styles.css",
   "./manifest.json",
+  "./version.json",
   "./child.json",
   "./average_growth.json",
   "./jszip.min.js",

@@ -1,5 +1,5 @@
 {
-  "name": "身長体重管理アプリ Ver.1.0.0",
+  "name": "身長体重管理アプリ",
   "short_name": "身長体重",
   "description": "園児の身長と体重を記録するアプリ",
   "start_url": "./index.html",
@@ -7,7 +7,15 @@
   "background_color": "#ffffff",
   "theme_color": "#4CAF50",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }
