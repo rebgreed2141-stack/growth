@@ -1177,8 +1177,10 @@ async function ensureStoredCurrentVersion() {
 }
 
 function updateVersionButtonState() {
-  applyUpdateBtn.disabled = !waitingWorker;
-  latestVersionValue.textContent = latestAppVersion || "確認できません";
+  const hasNewVersion = !!currentAppVersion && !!latestAppVersion && currentAppVersion !== latestAppVersion;
+  const canUpdate = !!waitingWorker || hasNewVersion;
+  applyUpdateBtn.disabled = !canUpdate;
+  latestVersionValue.textContent = hasNewVersion ? latestAppVersion : "最新です";
 }
 
 function renderVersionInfo() {
@@ -1190,12 +1192,15 @@ async function refreshVersionInfo() {
   setStatus("", versionStatus);
 
   try {
-    const version = await fetchVersionJson("no-store");
-    currentAppVersion = version;
-    latestAppVersion = version;
+    currentAppVersion = await ensureStoredCurrentVersion();
   } catch {
-    currentAppVersion = "確認できません";
-    latestAppVersion = "確認できません";
+    currentAppVersion = "";
+  }
+
+  try {
+    latestAppVersion = await fetchVersionJson("no-store");
+  } catch {
+    latestAppVersion = currentAppVersion;
   }
 
   renderVersionInfo();
@@ -1306,7 +1311,14 @@ function activateWorkerAndReload(worker) {
       navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
       finish();
     }
-  }).then(() => {
+  }).then(async () => {
+    try {
+      const activatedVersion = await detectActiveVersionFromServiceWorker();
+      if (activatedVersion) {
+        setStoredCurrentVersion(activatedVersion);
+      }
+    } catch {
+    }
     window.location.reload();
   });
 }
