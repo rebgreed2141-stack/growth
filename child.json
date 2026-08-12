@@ -304,6 +304,33 @@
       "name": "おおしま　かなた",
       "gender": "m",
       "birthDate": "2021/12/27"
+    },
+    {
+      "id": "c0032",
+       "classId": "koguma",
+      "className": "こぐま",
+      "no": 5,
+      "name": "こばやし　りお",
+      "gender": "m",
+      "birthDate": "2024/3/1"
+    },
+    {
+      "id": "c0033",
+      "classId": "momiji",
+      "className": "もみじ",
+      "no": 3,
+      "name": "さいとう　つばさ",
+      "gender": "f",
+      "birthDate": "2026/2/13"
+    },
+    {
+      "id": "c0034",
+      "classId": "momiji",
+      "className": "もみじ",
+      "no": 4,
+      "name": "おおしま　みお",
+      "gender": "f",
+      "birthDate": "2025/7/19"
     }
   ]
 }
